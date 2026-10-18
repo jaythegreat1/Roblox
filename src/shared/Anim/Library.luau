@@ -1655,4 +1655,572 @@ Library.SiroccoWaltz = {
 	},
 }
 
+--------------------------------------------------------------------------------
+-- Echoes: every superpower has its own move.
+local function held(duration, holdFrom, pose, settle)
+	return {
+		duration = duration,
+		keys = {
+			{ t = 0, pose = guard },
+			{ t = settle or 0.15, ease = "out", pose = pose },
+			{ t = holdFrom, pose = pose },
+			{ t = duration, ease = "inout", pose = guard },
+		},
+	}
+end
+
+-- Ember Dash: a low lunge with the sword dragged behind, ending in a full spin.
+Library.EchoEmberDash = {
+	duration = 0.6,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.07,
+			ease = "out",
+			pose = {
+				Root = { x = -28, py = -1.2 },
+				Waist = { x = -15 },
+				RightShoulder = { x = -45, z = 25 },
+				RightElbow = { x = 10 },
+				LeftShoulder = { x = 60, z = -10 },
+				LeftHip = { x = 65 },
+				LeftKnee = { x = -60 },
+				RightHip = { x = -35 },
+			},
+		},
+		{
+			t = 0.3,
+			pose = {
+				Root = { x = -28, py = -1.2 },
+				Waist = { x = -15 },
+				RightShoulder = { x = -45, z = 25 },
+				LeftShoulder = { x = 60, z = -10 },
+				LeftHip = { x = 65 },
+				LeftKnee = { x = -60 },
+				RightHip = { x = -35 },
+			},
+		},
+		{
+			t = 0.52,
+			ease = "inout",
+			pose = {
+				Root = { y = -360, py = -0.6 },
+				RightShoulder = { x = 85, z = 100 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = 40, z = -80 },
+			},
+		},
+		{ t = 0.6, ease = "out", pose = { Root = { y = -360 } } },
+	},
+}
+
+-- Flame Fang: a wide horizontal slash with a full body twist.
+Library.EchoFlameFang = {
+	duration = 0.5,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.12,
+			ease = "out",
+			pose = {
+				Root = { py = -0.5 },
+				Waist = { y = 70 },
+				RightShoulder = { x = 80, z = 115 },
+				RightElbow = { x = 20 },
+				LeftShoulder = { x = 40, z = -20 },
+				LeftHip = { x = 25 },
+			},
+		},
+		{
+			t = 0.24,
+			ease = "in",
+			pose = {
+				Root = { y = -200, py = -0.6 },
+				Waist = { y = -50 },
+				RightShoulder = { x = 95, z = -20 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -20, z = -60 },
+				RightHip = { x = 30 },
+			},
+		},
+		{ t = 0.42, ease = "out", pose = { Root = { y = -360, py = -0.3 }, RightShoulder = { x = 60, z = 30 } } },
+		{ t = 0.5, ease = "inout", pose = { Root = { y = -360 } } },
+	},
+}
+
+-- Blaze Spiral: a corkscrew rising slash, two full spins.
+Library.EchoBlazeSpiral = {
+	duration = 0.65,
+	keys = {
+		{
+			t = 0,
+			pose = {
+				Root = { py = -1 },
+				LeftKnee = { x = -60 },
+				RightKnee = { x = -60 },
+				LeftHip = { x = 40 },
+				RightHip = { x = 40 },
+				RightShoulder = { x = -20, z = 60 },
+			},
+		},
+		{
+			t = 0.5,
+			ease = "linear",
+			pose = {
+				Root = { y = -720, py = 1.6 },
+				RightShoulder = { x = 175, z = 20 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = 30, z = -110 },
+				LeftKnee = { x = -40 },
+				RightHip = { x = 20 },
+			},
+		},
+		{ t = 0.65, ease = "out", pose = { Root = { y = -720 }, RightShoulder = { x = 60 } } },
+	},
+}
+
+-- Inferno Cage: both hands drive the sword into the ground.
+Library.EchoInfernoCage = {
+	duration = 0.75,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.15,
+			ease = "out",
+			pose = {
+				Root = { py = 0.3, x = 8 },
+				RightShoulder = { x = 185 },
+				RightElbow = { x = 10 },
+				LeftShoulder = { x = 175 },
+				LeftElbow = { x = 15 },
+				Neck = { x = -15 },
+			},
+		},
+		{
+			t = 0.3,
+			ease = "in",
+			pose = {
+				Root = { x = -30, py = -1.4 },
+				Waist = { x = -30 },
+				RightShoulder = { x = 60 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = 60, z = 10 },
+				LeftElbow = { x = 0 },
+				LeftHip = { x = 70 },
+				LeftKnee = { x = -80 },
+				RightHip = { x = 10 },
+				RightKnee = { x = -70 },
+			},
+		},
+		{
+			t = 0.6,
+			pose = {
+				Root = { x = -28, py = -1.3 },
+				Waist = { x = -28 },
+				RightShoulder = { x = 62 },
+				LeftShoulder = { x = 62, z = 10 },
+				LeftHip = { x = 70 },
+				LeftKnee = { x = -80 },
+				RightKnee = { x = -70 },
+			},
+		},
+		{ t = 0.75, ease = "inout", pose = guard },
+	},
+}
+
+-- Solar Flare: a jumping overhand throw.
+Library.EchoSolarFlare = {
+	duration = 0.65,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.18,
+			ease = "out",
+			pose = {
+				Root = { py = 1, x = 18 },
+				Waist = { x = 15, y = 30 },
+				RightShoulder = { x = 205, z = 15 },
+				RightElbow = { x = 95 },
+				LeftShoulder = { x = 100, z = -20 },
+				LeftHip = { x = 50 },
+				LeftKnee = { x = -70 },
+				RightKnee = { x = -30 },
+			},
+		},
+		{
+			t = 0.32,
+			ease = "in",
+			pose = {
+				Root = { py = 0.8, x = -22 },
+				Waist = { x = -25, y = -25 },
+				RightShoulder = { x = 70 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -20, z = -30 },
+				LeftHip = { x = 30 },
+				RightHip = { x = -20 },
+			},
+		},
+		{ t = 0.65, ease = "inout", pose = guard },
+	},
+}
+
+-- Meteor Brand: the sword raised to the sky.
+Library.EchoMeteorBrand = held(0.85, 0.7, {
+	Root = { x = 10 },
+	Waist = { x = 8 },
+	RightShoulder = { x = 180 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 50, z = -50 },
+	LeftElbow = { x = 30 },
+	Neck = { x = -30 },
+	LeftHip = { x = 15 },
+	RightHip = { x = -10 },
+}, 0.22)
+
+-- Phoenix Descent: wings unfold for the climb, then a screaming dive.
+Library.EchoPhoenixRise = {
+	duration = 0.3,
+	hold = true,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.3,
+			ease = "out",
+			pose = {
+				Root = { x = 15 },
+				LeftShoulder = { x = 25, z = -105 },
+				RightShoulder = { x = 25, z = 105 },
+				LeftElbow = { x = 10 },
+				RightElbow = { x = 10 },
+				Neck = { x = -25 },
+				LeftHip = { x = -10 },
+				RightHip = { x = -10 },
+				LeftKnee = { x = -20 },
+				RightKnee = { x = -20 },
+			},
+		},
+	},
+}
+Library.EchoPhoenixDive = {
+	duration = 0.55,
+	keys = {
+		{
+			t = 0,
+			ease = "out",
+			pose = {
+				Root = { x = -75 },
+				RightShoulder = { x = 175 },
+				LeftShoulder = { x = 170 },
+				Neck = { x = -30 },
+				LeftHip = { x = -15 },
+				RightHip = { x = -15 },
+			},
+		},
+		{
+			t = 0.36,
+			pose = {
+				Root = { x = -80 },
+				RightShoulder = { x = 175 },
+				LeftShoulder = { x = 170 },
+				Neck = { x = -30 },
+			},
+		},
+		{
+			t = 0.45,
+			ease = "in",
+			pose = {
+				Root = { x = -25, py = -1.5 },
+				Waist = { x = -20 },
+				RightShoulder = { x = 55 },
+				LeftShoulder = { x = 50 },
+				LeftHip = { x = 80 },
+				LeftKnee = { x = -100 },
+				RightHip = { x = 20 },
+				RightKnee = { x = -90 },
+			},
+		},
+		{ t = 0.55, ease = "inout", pose = guard },
+	},
+}
+
+-- Flash Step: a crouched iai cut as you vanish.
+Library.EchoFlashStep = slash(0.38, 0.06, 0.16, {
+	Root = { py = -0.9, x = -15 },
+	Waist = { y = 35 },
+	RightShoulder = { x = -30, z = 30 },
+	RightElbow = { x = 20 },
+	LeftShoulder = { x = 20, z = -20 },
+	LeftHip = { x = 50 },
+	LeftKnee = { x = -60 },
+}, {
+	Root = { py = -0.5, x = -10 },
+	Waist = { y = -40 },
+	RightShoulder = { x = 95, z = -40 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = -30, z = -40 },
+	LeftHip = { x = 40 },
+	RightHip = { x = -20 },
+})
+
+-- Volt Lance: a javelin throw.
+Library.EchoVoltLance = {
+	duration = 0.55,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.18,
+			ease = "out",
+			pose = {
+				Root = { x = 10 },
+				Waist = { y = 45 },
+				RightShoulder = { x = 175, z = 25 },
+				RightElbow = { x = 85 },
+				LeftShoulder = { x = 85, z = -10 },
+				LeftHip = { x = 35 },
+				RightHip = { x = -15 },
+			},
+		},
+		{
+			t = 0.28,
+			ease = "in",
+			pose = {
+				Root = { x = -18 },
+				Waist = { y = -30, x = -10 },
+				RightShoulder = { x = 100 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -25, z = -20 },
+				LeftHip = { x = 15 },
+				RightHip = { x = 10 },
+			},
+		},
+		{ t = 0.55, ease = "inout", pose = guard },
+	},
+}
+
+-- Thunderclap: a stomp, then the sword thrust skyward.
+Library.EchoThunderclap = {
+	duration = 0.65,
+	keys = {
+		{ t = 0, pose = guard },
+		{ t = 0.14, ease = "out", pose = { Root = { py = 0.3 }, LeftHip = { x = 85 }, LeftKnee = { x = -85 } } },
+		{
+			t = 0.24,
+			ease = "in",
+			pose = {
+				Root = { py = -1 },
+				LeftHip = { x = 30 },
+				LeftKnee = { x = -50 },
+				RightHip = { x = 30 },
+				RightKnee = { x = -50 },
+				RightShoulder = { x = 40, z = 40 },
+			},
+		},
+		{
+			t = 0.4,
+			ease = "out",
+			pose = {
+				Root = { py = 0.2, x = 8 },
+				RightShoulder = { x = 185 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = 30, z = -60 },
+				Neck = { x = -20 },
+			},
+		},
+		{ t = 0.65, ease = "inout", pose = guard },
+	},
+}
+
+-- Arc Chain: a forked backhand slash.
+Library.EchoArcChain = slash(0.45, 0.1, 0.2, {
+	Waist = { y = -45 },
+	RightShoulder = { x = 155, z = -50 },
+	RightElbow = { x = 50 },
+	LeftShoulder = { x = 40, z = -30 },
+}, {
+	Root = { py = -0.5 },
+	Waist = { y = 40 },
+	RightShoulder = { x = 40, z = 85 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 70, z = -70 },
+	RightHip = { x = 25 },
+})
+
+-- Raiju Rush: a low wolf-like sprint that ends in a rising cut.
+Library.EchoRaijuRush = {
+	duration = 0.65,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.06,
+			ease = "out",
+			pose = {
+				Root = { x = -38, py = -0.9 },
+				Waist = { x = -10 },
+				RightShoulder = { x = -55, z = 30 },
+				LeftShoulder = { x = -45, z = -20 },
+				LeftHip = { x = 65 },
+				LeftKnee = { x = -50 },
+				RightHip = { x = -40 },
+				RightKnee = { x = -30 },
+			},
+		},
+		{
+			t = 0.42,
+			pose = {
+				Root = { x = -38, py = -0.9 },
+				RightShoulder = { x = -55, z = 30 },
+				LeftShoulder = { x = -45, z = -20 },
+				LeftHip = { x = 40 },
+				RightHip = { x = -10 },
+			},
+		},
+		{
+			t = 0.52,
+			ease = "out",
+			pose = {
+				Root = { x = 8, py = 0.4 },
+				RightShoulder = { x = 180, z = 10 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -30, z = -50 },
+			},
+		},
+		{ t = 0.65, ease = "inout", pose = guard },
+	},
+}
+
+-- Storm Pillar: kneels and plants the sword.
+Library.EchoStormPillar = {
+	duration = 0.75,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.18,
+			ease = "out",
+			pose = { Root = { py = 0.2 }, RightShoulder = { x = 175 }, RightElbow = { x = 10 } },
+		},
+		{
+			t = 0.32,
+			ease = "in",
+			pose = {
+				Root = { x = -15, py = -1.5 },
+				Waist = { x = -15 },
+				RightShoulder = { x = 45 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -10, z = -60 },
+				LeftHip = { x = 90 },
+				LeftKnee = { x = -90 },
+				RightHip = { x = 0 },
+				RightKnee = { x = -100 },
+			},
+		},
+		{
+			t = 0.62,
+			pose = {
+				Root = { x = -15, py = -1.5 },
+				RightShoulder = { x = 45 },
+				LeftShoulder = { x = -10, z = -60 },
+				LeftHip = { x = 90 },
+				LeftKnee = { x = -90 },
+				RightKnee = { x = -100 },
+			},
+		},
+		{ t = 0.75, ease = "inout", pose = guard },
+	},
+}
+
+-- Raijin's Wrath: rises with arms spread as the storm rolls in.
+Library.EchoRaijinsWrath = held(1.35, 1.15, {
+	Root = { x = 12 },
+	LeftShoulder = { x = 30, z = -125 },
+	RightShoulder = { x = 30, z = 125 },
+	LeftElbow = { x = 0 },
+	RightElbow = { x = 0 },
+	Neck = { x = -30 },
+	LeftKnee = { x = -25 },
+	RightKnee = { x = -15 },
+}, 0.3)
+
+-- Rift Blink: a quick hop through the glitch.
+Library.EchoRiftBlink = held(0.28, 0.12, {
+	Root = { py = 0.3, x = -10 },
+	LeftShoulder = { x = 20, z = -40 },
+	RightShoulder = { x = 40, z = 30 },
+	LeftKnee = { x = -40 },
+	RightKnee = { x = -40 },
+	LeftHip = { x = 30 },
+	RightHip = { x = 30 },
+}, 0.06)
+
+-- Second Wind: kneels and breathes.
+Library.EchoSecondWind = held(1, 0.8, {
+	Root = { py = -1.6, x = -8 },
+	Waist = { x = -10 },
+	RightHip = { x = 90 },
+	RightKnee = { x = -90 },
+	LeftHip = { x = 0 },
+	LeftKnee = { x = -100 },
+	Neck = { x = 25 },
+	RightShoulder = { x = 30, z = 10 },
+	LeftShoulder = { x = 40, z = -10 },
+	LeftElbow = { x = 60 },
+}, 0.2)
+
+-- Battle Cry: the sword raised with a roar.
+Library.EchoBattleCry = held(0.75, 0.6, {
+	Root = { x = 15 },
+	Waist = { x = 12 },
+	RightShoulder = { x = 175, z = 15 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 70, z = -70 },
+	LeftElbow = { x = 90 },
+	Neck = { x = -30 },
+	LeftHip = { x = 25 },
+	RightHip = { x = -15 },
+}, 0.15)
+
+-- Iron Will: a sharp flex as the statuses shatter.
+Library.EchoIronWill = held(0.5, 0.32, {
+	Root = { py = -0.4 },
+	LeftShoulder = { z = -90 },
+	RightShoulder = { z = 90 },
+	LeftElbow = { x = 110 },
+	RightElbow = { x = 110 },
+	Neck = { x = -10 },
+	LeftHip = { z = -12 },
+	RightHip = { z = 12 },
+}, 0.08)
+
+-- Rift Burst: curl in, then explode outward.
+Library.RiftBurst = {
+	duration = 0.45,
+	keys = {
+		{
+			t = 0,
+			ease = "out",
+			pose = {
+				Root = { py = -0.7 },
+				Waist = { x = 25 },
+				LeftShoulder = { x = 70 },
+				RightShoulder = { x = 70 },
+				LeftElbow = { x = 110 },
+				RightElbow = { x = 110 },
+				LeftKnee = { x = -40 },
+				RightKnee = { x = -40 },
+			},
+		},
+		{
+			t = 0.2,
+			ease = "out",
+			pose = {
+				Root = { py = 0.3, x = 12 },
+				Waist = { x = -10 },
+				LeftShoulder = { x = 30, z = -135 },
+				RightShoulder = { x = 30, z = 135 },
+				Neck = { x = -25 },
+			},
+		},
+		{ t = 0.45, ease = "inout", pose = guard },
+	},
+}
+
 return Library

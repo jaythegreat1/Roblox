@@ -25,6 +25,9 @@ local lastJumpRequest = 0
 local minFallSpeed = 0
 local drive: { dir: Vector3, from: number, to: number, startTime: number, duration: number, keepY: boolean }? = nil
 local listeners: { (number) -> () } = {}
+-- Echo movement: velocity segments sent by the server (dashes, blinks, Phoenix flights).
+local path: { { v: Vector3, t: number } } = {}
+local pathSegmentEnds = 0
 
 local function parts()
 	local character = player.Character
@@ -59,7 +62,11 @@ local function spendCharge(): boolean
 		return false
 	end
 	charges -= 1
-	table.insert(refillAt, os.clock() + M.DodgeRefill * (#refillAt + 1))
+	-- Shock makes dodge charges refill 50% slower.
+	local character = player.Character
+	local shockEnds = character and character:GetAttribute("Status_Shock")
+	local shocked = typeof(shockEnds) == "number" and workspace:GetServerTimeNow() < shockEnds
+	table.insert(refillAt, os.clock() + M.DodgeRefill * (if shocked then 1.5 else 1) * (#refillAt + 1))
 	notify()
 	return true
 end
@@ -193,6 +200,17 @@ function Movement.lunge(distance: number, duration: number)
 	end
 end
 
+function Movement.path(segments: { { v: Vector3, t: number } })
+	path = table.clone(segments)
+	pathSegmentEnds = 0
+	drive = nil
+	local total = 0
+	for _, seg in segments do
+		total += seg.t
+	end
+	Movement.lockFor(total)
+end
+
 function Movement.onCharges(fn: (number) -> ())
 	table.insert(listeners, fn)
 	fn(charges)
@@ -238,6 +256,7 @@ end
 local function onCharacter(character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	airJumpUsed, airDashUsed, drive, busyUntil = false, false, nil, 0
+	path = {}
 	humanoid.WalkSpeed = if sprinting then Config.Character.SprintSpeed else Config.Character.WalkSpeed
 	humanoid.StateChanged:Connect(function(_, new)
 		if new == Enum.HumanoidStateType.Jumping then
@@ -292,6 +311,18 @@ function Movement.start(remote: RemoteEvent)
 		local v = hrp.AssemblyLinearVelocity
 		if not grounded(humanoid) then
 			minFallSpeed = math.min(minFallSpeed, v.Y)
+		end
+		if #path > 0 then
+			if pathSegmentEnds == 0 then
+				pathSegmentEnds = now + path[1].t
+			elseif now >= pathSegmentEnds then
+				table.remove(path, 1)
+				pathSegmentEnds = if path[1] then now + path[1].t else 0
+			end
+			if path[1] then
+				hrp.AssemblyLinearVelocity = path[1].v
+				return
+			end
 		end
 		if drive then
 			local a = (now - drive.startTime) / drive.duration

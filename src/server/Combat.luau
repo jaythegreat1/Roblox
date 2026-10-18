@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Swords = require(ReplicatedStorage.Shared.Combat.Swords)
+local Echoes = require(ReplicatedStorage.Shared.Combat.Echoes)
 
 local Combat = {}
 
@@ -35,6 +36,13 @@ type State = {
 	frenzyStacks: number,
 	armorUntil: number,
 	riposteUntil: number,
+	empowerUntil: number,
+	empowerStatus: string?,
+	chainCount: number,
+	chainLastAt: number,
+	statusOrder: { string },
+	burnSource: any?,
+	nextBurnAt: number?,
 }
 
 local states: { [Model]: State } = {}
@@ -63,7 +71,16 @@ local function stunned(s: State): boolean
 	return typeof(untilTime) == "number" and now() < untilTime
 end
 
+local function hasStatus(s: State, name: string): boolean
+	local untilTime = s.model:GetAttribute("Status_" .. name)
+	return typeof(untilTime) == "number" and now() < untilTime
+end
+
 local function stun(s: State, seconds: number)
+	-- Shock: every hit taken adds a 0.15 s micro-stun.
+	if hasStatus(s, "Shock") then
+		seconds += 0.15
+	end
 	local untilTime = now() + seconds
 	local current = s.model:GetAttribute("StunnedUntil")
 	if typeof(current) ~= "number" or current < untilTime then
@@ -104,10 +121,76 @@ local function damage(s: State, amount: number)
 	end
 end
 
-local function knockback(target: State, from: Vector3, strength: number)
+local function addSurge(s: State?, amount: number)
+	if not s or amount <= 0 then
+		return
+	end
+	local current = s.model:GetAttribute("Surge")
+	local value = math.clamp((if typeof(current) == "number" then current else 0) + amount, 0, Echoes.Surge.max)
+	s.model:SetAttribute("Surge", value)
+end
+
+-- Every damaging hit goes through here: buffs, Mark, and Surge for both sides.
+local function hurt(attacker: State?, target: State, amount: number): number
+	if attacker and typeof(attacker.model:GetAttribute("BattleCryUntil")) == "number" then
+		if now() < attacker.model:GetAttribute("BattleCryUntil") then
+			amount *= 1.15
+		end
+	end
+	if hasStatus(target, "Mark") then
+		amount *= 1.2
+		target.model:SetAttribute("Status_Mark", nil)
+	end
+	damage(target, amount)
+	addSurge(attacker, amount * Echoes.Surge.perDamageDealt)
+	addSurge(target, amount * Echoes.Surge.perDamageTaken)
+	return amount
+end
+
+-- Statuses (master plan): at most two different ones at a time, a third replaces the oldest;
+-- reapplying refreshes. Stored as Status_<name> = server time it ends, so clients can show it.
+local function applyStatus(target: State, name: string, duration: number?, source: State?)
+	local info = Echoes.Statuses[name]
+	if not info or not alive(target) then
+		return
+	end
+	local seconds = duration or info.duration
+	if source and source.model:GetAttribute("Attuned") then
+		seconds *= 1.15
+	end
+	local order = target.statusOrder
+	local i = table.find(order, name)
+	if i then
+		table.remove(order, i)
+	else
+		-- Drop expired entries, then make room.
+		for j = #order, 1, -1 do
+			if not hasStatus(target, order[j]) then
+				table.remove(order, j)
+			end
+		end
+		if #order >= 2 then
+			target.model:SetAttribute("Status_" .. table.remove(order, 1), nil)
+		end
+	end
+	table.insert(order, name)
+	target.model:SetAttribute("Status_" .. name, now() + seconds)
+	if name == "Burn" then
+		target.burnSource = source
+	end
+end
+
+local function clearStatuses(s: State)
+	for name in Echoes.Statuses do
+		s.model:SetAttribute("Status_" .. name, nil)
+	end
+	table.clear(s.statusOrder)
+end
+
+local function knockback(target: State, from: Vector3, strength: number, lift: number?)
 	local dir = (target.hrp.Position - from) * Vector3.new(1, 0, 1)
 	dir = if dir.Magnitude > 0.01 then dir.Unit else target.hrp.CFrame.LookVector * -1
-	local velocity = dir * strength + Vector3.new(0, strength * 0.3, 0)
+	local velocity = dir * strength + Vector3.new(0, lift or strength * 0.3, 0)
 	local player = Players:GetPlayerFromCharacter(target.model)
 	if player then
 		knockbackRemote:FireClient(player, velocity)
@@ -136,12 +219,18 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 
 	-- Clash: both fighters' strikes land within 0.12 s of each other while facing.
 	local pending = target.pendingStrikeAt
-	if pending and math.abs(pending - t) <= 0.12 and facing(target.hrp, attacker.hrp.Position, 120) then
+	if
+		not move.echo
+		and pending
+		and math.abs(pending - t) <= 0.12
+		and facing(target.hrp, attacker.hrp.Position, 120)
+	then
 		stun(target, 0.5)
 		stun(attacker, 0.5)
 		for _, s in { attacker, target } do
 			s.lastPostureHit = t
 			setPosture(s, s.posture - 15)
+			addSurge(s, Echoes.Surge.perClash)
 		end
 		knockback(target, attacker.hrp.Position, 28)
 		knockback(attacker, target.hrp.Position, 28)
@@ -154,20 +243,25 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		return
 	end
 
-	local blockingNow = target.blocking and facing(target.hrp, attacker.hrp.Position, C.blockArc)
-	local dummyParry = target.dummyMode == "Parry" and math.random() < 0.5
+	local from = move.from or attacker.hrp.Position
+	local blockingNow = not move.unblockable and target.blocking and facing(target.hrp, from, C.blockArc)
+	local canParry = not move.unblockable and not move.unparryable
+	local dummyParry = canParry and target.dummyMode == "Parry" and math.random() < 0.5
 	local parryWindow = swordOf(target).parryWindow or C.parryWindow
-	if dummyParry or (blockingNow and t - target.blockStart <= parryWindow) then
+	if canParry and (dummyParry or (blockingNow and t - target.blockStart <= parryWindow)) then
 		target.parriedDuringBlock = true
 		target.riposteUntil = t + 1
-		stun(attacker, C.parriedStun)
+		addSurge(target, Echoes.Surge.perParry)
+		if not move.ranged then
+			stun(attacker, C.parriedStun)
+		end
 		fx("parry", attacker.model, target.model, hitPos)
 		return
 	end
 
 	if blockingNow then
 		local chip = amount * (1 - C.blockReduction)
-		damage(target, chip)
+		hurt(attacker, target, chip)
 		target.lastPostureHit = t
 		local postureCost = move.posture * (if swordOf(target).passive == "steadfast" then 0.85 else 1)
 		setPosture(target, target.posture - postureCost)
@@ -197,19 +291,31 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		attacker.frenzyStacks = 1
 	end
 	attacker.lastHitLandedAt = t
-	damage(target, amount)
-	-- Hyper armor (Titan's Maw): light hits still hurt but cannot interrupt a heavy.
-	local armored = swordOf(target).passive == "unstoppable" and (target.chargingSince ~= nil or t < target.armorUntil)
+	amount = hurt(attacker, target, amount)
+	if t - target.chainLastAt > 1.5 then
+		target.chainCount = 0
+	end
+	target.chainCount += 1
+	target.chainLastAt = t
+	if target.chainCount >= 3 then
+		-- Taking 3 hits in a row opens the Rift Burst combo breaker for a moment.
+		target.model:SetAttribute("BurstUntil", t + 1.5)
+	end
+	if move.status then
+		applyStatus(target, move.status, move.statusTime, attacker)
+	end
+	-- Hyper armor (Titan's Maw heavies, Iron Will): light hits still hurt but cannot interrupt.
+	local armored = (swordOf(target).passive == "unstoppable" and target.chargingSince ~= nil) or t < target.armorUntil
 	if armored and not isHeavy then
 		fx("hit", attacker.model, target.model, hitPos, amount, false)
 		fx("armor", nil, target.model, hitPos)
 		return
 	end
-	stun(target, if isHeavy then C.heavyStun else C.hitStun)
-	if move.knockback then
-		knockback(target, attacker.hrp.Position, move.knockback)
+	stun(target, move.stun or (if isHeavy then C.heavyStun else C.hitStun))
+	if move.knockback or move.lift then
+		knockback(target, from, move.knockback or 0, move.lift)
 	end
-	fx("hit", attacker.model, target.model, hitPos, amount, isHeavy or move.knockback ~= nil)
+	fx("hit", attacker.model, target.model, hitPos, amount, isHeavy or move.knockback ~= nil or move.lift ~= nil)
 end
 
 local function resolve(attacker: State, move, isHeavy: boolean, amount: number, token: number, final: boolean)
@@ -257,7 +363,17 @@ local function onLight(s: State)
 		s.riposteUntil = 0
 	end
 	s.lastAttackAt = t
+	if t < s.empowerUntil and s.empowerStatus then
+		-- Flash Step: the next light applies a status.
+		move = table.clone(move)
+		move.status = s.empowerStatus
+		s.empowerUntil = 0
+	end
 	local lock = move.lock
+	local haste = s.model:GetAttribute("BattleCryUntil")
+	if typeof(haste) == "number" and t < haste then
+		lock *= 0.85
+	end
 	if sword.passive == "frenzy" and t - s.lastHitLandedAt < 1.5 then
 		lock *= 1 - 0.05 * s.frenzyStacks
 	end
@@ -459,7 +575,7 @@ local function onEquip(s: State, id: any)
 	fx("equip", s.model, nil, s.hrp.Position, nil, id)
 end
 
-local handlers = {
+local handlers: { [string]: (State, any) -> () } = {
 	Equip = onEquip,
 	Grab = onGrab,
 	Finish = onFinish,
@@ -470,6 +586,11 @@ local handlers = {
 	BlockStart = onBlockStart,
 	BlockEnd = onBlockEnd,
 }
+
+-- Other modules (Echoes) add their own actions here.
+function Combat.addHandler(name: string, fn: (State, any) -> ())
+	handlers[name] = fn
+end
 
 -- Entry point for an action from any fighter: player remotes and, later, AI bots.
 function Combat.request(model: Model, action: any, arg: any?)
@@ -511,15 +632,65 @@ function Combat.register(model: Model, dummyMode: string?)
 		frenzyStacks = 0,
 		armorUntil = 0,
 		riposteUntil = 0,
+		empowerUntil = 0,
+		empowerStatus = nil,
+		chainCount = 0,
+		chainLastAt = 0,
+		statusOrder = {},
 	}
 	states[model] = s
 	setPosture(s, C.maxPosture)
 	model.Destroying:Connect(function()
 		states[model] = nil
 	end)
+	local player = Players:GetPlayerFromCharacter(model)
+	local carried = player and player:GetAttribute("SurgeCarry")
+	model:SetAttribute("Surge", if typeof(carried) == "number" then carried else 0)
 	humanoid.Died:Connect(function()
 		states[model] = nil
+		-- Half of the Surge meter is lost on a KO.
+		if player then
+			local surge = model:GetAttribute("Surge")
+			player:SetAttribute("SurgeCarry", if typeof(surge) == "number" then math.floor(surge / 2) else 0)
+		end
 	end)
+end
+
+-- Shared tools for Echoes and other systems built on the same rules.
+Combat.now = now
+Combat.fx = fx
+Combat.alive = alive
+Combat.stunned = stunned
+Combat.stun = stun
+Combat.knockback = knockback
+Combat.facing = facing
+Combat.addSurge = addSurge
+Combat.applyStatus = applyStatus
+Combat.clearStatuses = clearStatuses
+Combat.hasStatus = hasStatus
+Combat.hurt = hurt
+
+-- A short message shown only to one player.
+function Combat.notice(player: Player, text: string)
+	fxRemote:FireClient(player, "notice", nil, nil, nil, nil, text)
+end
+
+function Combat.state(model: Model?): State?
+	return if model then states[model] else nil
+end
+
+function Combat.all(): { [Model]: State }
+	return states
+end
+
+-- An Echo hit. It is blockable and parryable like a sword hit unless opts say otherwise.
+-- opts: posture, knockback, lift, status, statusTime, stun, heavy, unblockable, unparryable,
+-- ranged (a parry does not stagger the caster), from (where the hit comes from).
+function Combat.echoHit(attacker: State, target: State, amount: number, opts)
+	local move = table.clone(opts or {})
+	move.echo = true
+	move.posture = move.posture or 10
+	applyHit(attacker, target, move, opts and opts.heavy == true, amount)
 end
 
 -- Lets AI fighters react to swings: (attacker, move, isHeavy, server time the hit lands).
@@ -555,6 +726,13 @@ function Combat.start(remotes: Folder)
 		for _, s in states do
 			if not s.blocking and s.posture < C.maxPosture and t - s.lastPostureHit > C.postureRegenDelay then
 				setPosture(s, s.posture + C.postureRegenPerSecond * dt)
+			end
+			-- Burn: 2 damage every 0.5 s.
+			if hasStatus(s, "Burn") and t >= (s.nextBurnAt or 0) then
+				s.nextBurnAt = t + 0.5
+				local source = s.burnSource
+				hurt(if alive(source) then source else nil, s, 2)
+				fx("burntick", nil, s.model, s.hrp.Position + Vector3.new(0, 1, 0), 2)
 			end
 			local h = s.humanoid
 			if h.Health > 0 and h.Health < h.MaxHealth and t - s.lastDamageAt > C.regenDelay then

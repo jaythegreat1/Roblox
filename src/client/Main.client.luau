@@ -8,6 +8,7 @@ local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
 local Movement = require(script.Parent.Movement)
 local Combat = require(script.Parent.Combat)
 local Armory = require(script.Parent.Armory)
+local EchoHud = require(script.Parent.EchoHud)
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
@@ -96,6 +97,7 @@ local function button(name: string, x: number, y: number, size: number, accent: 
 	return b
 end
 
+local echoButtons: { [string]: TextButton } = {}
 if UserInputService.TouchEnabled then
 	local attack = button("Attack", -110, -110, 88, true, function() end)
 	attack.MouseButton1Down:Connect(Combat.attackDown)
@@ -108,10 +110,19 @@ if UserInputService.TouchEnabled then
 	local dodge = button("Dodge", -175, -185, 56, false, Movement.dodge)
 	button("Dash", -255, -150, 48, false, Movement.dash)
 	local grab = button("Grab", -285, -60, 48, false, Combat.grabOrFinish)
-	button("Echo 1", -275, -245, 50)
-	button("Echo 2", -205, -285, 50)
-	button("Echo 3", -135, -295, 50)
-	button("Surge", -60, -265, 56, true)
+	for i, pos in { { -280, -250 }, { -205, -292 }, { -128, -300 } } do
+		local slot = "Echo" .. i
+		local b = button(slot, pos[1], pos[2], 60, false, function()
+			Combat.castEcho(slot)
+		end)
+		b.TextSize = 10
+		echoButtons[slot] = b
+	end
+	local surge = button("EchoSurge", -52, -262, 64, true, function()
+		Combat.castEcho("EchoSurge")
+	end)
+	surge.TextSize = 11
+	echoButtons.EchoSurge = surge
 	local lock = button("Lock", -330, -210, 42, false, Combat.toggleLock)
 	Combat.onLock(function(on)
 		lock.BackgroundColor3 = if on then Color3.fromRGB(255, 80, 120) else Color3.fromRGB(30, 26, 40)
@@ -139,7 +150,7 @@ local panel = Instance.new("Frame")
 panel.BackgroundColor3 = Color3.fromRGB(20, 18, 28)
 panel.BackgroundTransparency = 0.35
 panel.Position = UDim2.fromOffset(16, 16)
-panel.Size = UDim2.fromOffset(230, 52)
+panel.Size = UDim2.fromOffset(230, 64)
 panel.Parent = gui
 local panelCorner = Instance.new("UICorner")
 panelCorner.CornerRadius = UDim.new(0, 10)
@@ -162,6 +173,7 @@ end
 
 local healthFill = hudBar(10, 16, Color3.fromRGB(90, 220, 120))
 local postureFill = hudBar(32, 9, Color3.fromRGB(250, 200, 70))
+local surgeFill = hudBar(46, 8, Color3.fromRGB(190, 90, 255))
 local healthText = Instance.new("TextLabel")
 healthText.BackgroundTransparency = 1
 healthText.Position = UDim2.fromOffset(10, 10)
@@ -198,6 +210,13 @@ RunService.Heartbeat:Connect(function()
 		healthText.Text = `{math.ceil(humanoid.Health)} / {humanoid.MaxHealth}`
 		local p = character:GetAttribute("Posture")
 		postureFill.Size = UDim2.fromScale(math.clamp((if typeof(p) == "number" then p else 100) / 100, 0, 1), 1)
+		local surgeValue = character:GetAttribute("Surge")
+		local surgeFull = typeof(surgeValue) == "number" and surgeValue >= 100
+		surgeFill.Size =
+			UDim2.fromScale(math.clamp((if typeof(surgeValue) == "number" then surgeValue else 0) / 100, 0, 1), 1)
+		surgeFill.BackgroundColor3 = if surgeFull
+			then Color3.fromRGB(255, 200, 80):Lerp(Color3.fromRGB(255, 70, 110), (math.sin(os.clock() * 6) + 1) / 2)
+			else Color3.fromRGB(190, 90, 255)
 	end
 	if os.clock() > comboClearAt then
 		combo.Text = ""
@@ -242,3 +261,4 @@ end
 player.CharacterAdded:Connect(onCharacter)
 
 Armory.build(gui, Combat.equip)
+EchoHud.build(gui, if next(echoButtons) then echoButtons else nil, Combat)

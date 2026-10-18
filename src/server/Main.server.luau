@@ -15,6 +15,8 @@ action.Parent = remotes
 
 local Combat = require(script.Parent.Combat)
 Combat.start(remotes)
+local Echoes = require(script.Parent.Echoes)
+Echoes.start(remotes)
 remotes.Parent = ReplicatedStorage
 
 local ErrorLog = require(script.Parent.ErrorLog)
@@ -42,6 +44,8 @@ action.OnServerEvent:Connect(function(player, name)
 	if character and DODGES[name] then
 		-- Rolls are invulnerable for their first 0.25 s; the server is the one that checks it.
 		character:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + Config.Movement.RollIFrames)
+		-- A dodge roll puts out Burn.
+		character:SetAttribute("Status_Burn", nil)
 	end
 	for _, other in Players:GetPlayers() do
 		if other ~= player then
@@ -60,6 +64,7 @@ require(script.Parent.Characters).start(spawnPad, function(model, player)
 	Sword.attach(model, player:GetAttribute("SwordId") :: string?)
 	Overhead.attach(model, player.DisplayName, player)
 	Combat.register(model)
+	Echoes.setup(model, player)
 end)
 require(script.Parent.Dummies).spawn(spawnPad.Position)
 require(script.Parent.Bot).spawn(spawnPad.Position + Vector3.new(0, 0, 40))

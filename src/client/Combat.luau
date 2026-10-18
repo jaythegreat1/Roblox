@@ -10,6 +10,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
 local Swords = require(ReplicatedStorage.Shared.Combat.Swords)
+local EchoData = require(ReplicatedStorage.Shared.Combat.Echoes)
+local EchoFx = require(script.Parent.EchoFx)
 
 local Combat = {}
 
@@ -32,6 +34,7 @@ local lastLightAt = 0
 local comboCount = 0
 local comboExpires = 0
 local comboListeners: { (number) -> () } = {}
+local lastWasLight = false
 local shakeUntil, shakeStrength = 0, 0
 
 local function myCharacter(): Model?
@@ -149,9 +152,17 @@ local function popText(position: Vector3, text: string, color: Color3, big: bool
 	Debris:AddItem(anchor, 0.75)
 end
 
-local function extraFx(kind: string, attacker: Model?, target: Model?, position: Vector3?, amount: number?)
+local function extraFx(kind: string, attacker: Model?, target: Model?, position: Vector3?, amount: number?, extra: any?)
 	local me = myCharacter()
-	if kind == "clash" and position then
+	if EchoFx.handle(kind, attacker, target, position, amount, extra) then
+		return true
+	end
+	if kind == "notice" then
+		local hrp = me and me:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			popText(hrp.Position + Vector3.new(0, 2, 0), tostring(extra), Color3.fromRGB(220, 220, 255))
+		end
+	elseif kind == "clash" and position then
 		burst(position, Color3.fromRGB(255, 255, 255), 45, 1.2)
 		burst(position, Color3.fromRGB(255, 200, 90), 25, 0.8)
 		popText(position, "CLASH", Color3.fromRGB(255, 230, 150), true)
@@ -325,7 +336,12 @@ local function light()
 	if sword.passive == "frenzy" and t < comboExpires then
 		lock *= 1 - 0.05 * math.min(comboCount, 5)
 	end
+	local haste = myCharacter() and myCharacter():GetAttribute("BattleCryUntil")
+	if typeof(haste) == "number" and workspace:GetServerTimeNow() < haste then
+		lock *= 0.85
+	end
 	lockUntil = t + lock
+	lastWasLight = true
 	Movement.lockFor(move.lock * 0.6)
 	playSwing(myCharacter(), move.anim)
 	request:FireServer("Light")
@@ -362,6 +378,7 @@ function Combat.attackUp()
 			return
 		end
 		local heavy = currentSword().heavy
+		lastWasLight = false
 		lockUntil = os.clock() + heavy.lock
 		comboIndex = 0
 		Movement.lockFor(heavy.lock * 0.7)
@@ -542,6 +559,69 @@ function Combat.onLock(fn: (boolean) -> ())
 	table.insert(lockListeners, fn)
 end
 
+-- Echoes ---------------------------------------------------------------------------------
+
+local function attr(name: string): any
+	local character = myCharacter()
+	return character and character:GetAttribute(name)
+end
+
+local function untilNow(name: string): boolean
+	local v = attr(name)
+	return typeof(v) == "number" and workspace:GetServerTimeNow() < v
+end
+
+-- Whether the Surge button would fire Rift Burst (the combo breaker) right now.
+function Combat.canBurst(): boolean
+	local surge = attr("Surge")
+	return typeof(surge) == "number"
+		and surge >= EchoData.Surge.riftBurstCost
+		and untilNow("BurstUntil")
+		and not untilNow("CD_RiftBurst")
+end
+
+function Combat.castEcho(slot: string)
+	local character = myCharacter()
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not character or not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	if slot == "EchoSurge" then
+		local surge = attr("Surge")
+		if (typeof(surge) ~= "number" or surge < EchoData.Surge.max) and Combat.canBurst() then
+			-- Rift Burst works even while you are stunned.
+			Engine.play(character, "RiftBurst")
+			request:FireServer("Echo", { slot = "RiftBurst" })
+			return
+		end
+		if typeof(surge) ~= "number" or surge < EchoData.Surge.max then
+			return
+		end
+	end
+	local e = EchoData.get(attr(slot))
+	if not e or stunned() or blocking or charging then
+		return
+	end
+	local t = os.clock()
+	local afterLight = lastWasLight and t - lastLightAt < 1
+	if (t < lockUntil and not afterLight) or (Movement.isBusy() and not afterLight) then
+		return
+	end
+	if e.rarity ~= "Mythic" and untilNow("CD_" .. e.id) then
+		return
+	end
+	lastWasLight = false
+	comboIndex = 0
+	lockUntil = t + e.cast + 0.3
+	Movement.lockFor(e.cast + 0.2)
+	playSwing(character, e.anim)
+	request:FireServer("Echo", { slot = slot, target = lockTarget, dir = humanoid.MoveDirection })
+end
+
+function Combat.setLoadout(slot: string, id: string)
+	request:FireServer("Loadout", { slot = slot, id = id })
+end
+
 function Combat.equip(id: string)
 	request:FireServer("Equip", id)
 end
@@ -550,13 +630,27 @@ function Combat.onCombo(fn: (number) -> ())
 	table.insert(comboListeners, fn)
 end
 
+Combat.shake = shake
+Combat.popText = popText
+
+function Combat.unlock()
+	if lockTarget then
+		clearLock()
+	end
+end
+
 function Combat.start(remotes: Folder, movement)
 	Movement = movement
+	EchoFx.start(Combat)
+	local echoMove = remotes:WaitForChild("EchoMove") :: RemoteEvent
+	echoMove.OnClientEvent:Connect(function(segments)
+		Movement.path(segments)
+	end)
 	request = remotes:WaitForChild("Combat") :: RemoteEvent
 	local fxRemote = remotes:WaitForChild("CombatFx") :: RemoteEvent
 	local knockbackRemote = remotes:WaitForChild("Knockback") :: RemoteEvent
 	fxRemote.OnClientEvent:Connect(function(kind, attacker, target, position, amount, extra)
-		if not extraFx(kind, attacker, target, position, amount) then
+		if not extraFx(kind, attacker, target, position, amount, extra) then
 			onFx(kind, attacker, target, position, amount, extra)
 		end
 	end)
@@ -634,6 +728,14 @@ function Combat.start(remotes: Folder, movement)
 			Combat.grabOrFinish()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.LeftControl then
 			Combat.toggleLock()
+		elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.Z then
+			Combat.castEcho("Echo1")
+		elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.X then
+			Combat.castEcho("Echo2")
+		elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.C then
+			Combat.castEcho("Echo3")
+		elseif input.KeyCode == Enum.KeyCode.G then
+			Combat.castEcho("EchoSurge")
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)

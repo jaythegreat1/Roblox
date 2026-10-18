@@ -8,6 +8,8 @@ local Characters = require(script.Parent.Characters)
 local Sword = require(script.Parent.Sword)
 local Combat = require(script.Parent.Combat)
 local Overhead = require(script.Parent.Overhead)
+local Echoes = require(script.Parent.Echoes)
+local EchoData = require(game:GetService("ReplicatedStorage").Shared.Combat.Echoes)
 
 local Bot = {}
 
@@ -74,6 +76,17 @@ local function build(home: Vector3): Model
 	CollectionService:AddTag(model, "BladeRiftRig")
 	Overhead.attach(model, model:GetAttribute("BotLabel") :: string)
 	Combat.register(model)
+	-- A random set of Echoes too, so you learn to read them.
+	local pool, mythics = {}, {}
+	for _, e in EchoData.List do
+		table.insert(if e.rarity == "Mythic" then mythics else pool, e.id)
+	end
+	local loadout = {}
+	for _ = 1, 3 do
+		table.insert(loadout, table.remove(pool, math.random(1, #pool)))
+	end
+	table.insert(loadout, mythics[math.random(1, #mythics)])
+	Echoes.setup(model, nil, loadout)
 	pcall(function()
 		(model:FindFirstChild("HumanoidRootPart") :: BasePart):SetNetworkOwner(nil)
 	end)
@@ -144,6 +157,17 @@ local function run(model: Model, home: Vector3)
 		local flat = Vector3.new(thrp.Position.X, hrp.Position.Y, thrp.Position.Z)
 		if (flat - hrp.Position).Magnitude > 0.1 then
 			hrp.CFrame = CFrame.lookAt(hrp.Position, flat)
+		end
+		-- Echoes: now and then, and the Mythic as soon as Surge is full.
+		local surge = model:GetAttribute("Surge")
+		if typeof(surge) == "number" and surge >= EchoData.Surge.max and dist <= 18 then
+			Combat.request(model, "Echo", { slot = "EchoSurge", target = target })
+			task.wait(1.2)
+			continue
+		elseif dist <= 16 and math.random() < 0.06 then
+			Combat.request(model, "Echo", { slot = "Echo" .. math.random(1, 3), target = target })
+			task.wait(0.5)
+			continue
 		end
 		if dist > 7 then
 			humanoid:MoveTo(thrp.Position)
