@@ -614,4 +614,169 @@ Library.GuardBreak = {
 	},
 }
 
+Library.GrabReach = {
+	duration = 0.75,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.25,
+			ease = "out",
+			pose = {
+				Root = { x = -20, py = -0.4 },
+				Waist = { x = -15, y = -20 },
+				LeftShoulder = { x = 95, z = 10 },
+				LeftElbow = { x = 5 },
+				RightShoulder = { x = 20, z = 30 },
+				LeftHip = { x = 40 },
+				LeftKnee = { x = -30 },
+			},
+		},
+		{
+			t = 0.4,
+			ease = "in",
+			pose = {
+				Root = { x = -10, py = -0.3 },
+				Waist = { x = 5, y = 40 },
+				LeftShoulder = { x = 60, z = -40 },
+				LeftElbow = { x = 40 },
+				RightShoulder = { x = 70, z = 60 },
+				RightElbow = { x = 30 },
+			},
+		},
+		{ t = 0.75, ease = "inout", pose = guard },
+	},
+}
+
+Library.Clash = {
+	duration = 0.5,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.05,
+			ease = "out",
+			pose = {
+				Root = { x = 12, py = -0.5 },
+				Waist = { x = 15 },
+				RightShoulder = { x = 110, z = -10 },
+				RightElbow = { x = 60 },
+				LeftShoulder = { x = 90, z = 20 },
+				LeftElbow = { x = 70 },
+				LeftKnee = { x = -35 },
+				RightKnee = { x = -35 },
+			},
+		},
+		{
+			t = 0.35,
+			pose = {
+				Root = { x = 10, py = -0.5 },
+				Waist = { x = 12 },
+				RightShoulder = { x = 105, z = -10 },
+				RightElbow = { x = 60 },
+				LeftShoulder = { x = 85, z = 20 },
+				LeftElbow = { x = 70 },
+				LeftKnee = { x = -35 },
+				RightKnee = { x = -35 },
+			},
+		},
+		{ t = 0.5, ease = "inout", pose = guard },
+	},
+}
+
+-- Iron Oath basic finisher: hilt strike, then one clean spinning cut.
+Library.FinisherOath = {
+	duration = 1.3,
+	keys = {
+		{ t = 0, pose = guard },
+		{
+			t = 0.15,
+			ease = "out",
+			pose = {
+				Waist = { y = 30 },
+				RightShoulder = { x = 90, z = 20 },
+				RightElbow = { x = 90 },
+				LeftHip = { x = 30 },
+			},
+		},
+		{
+			t = 0.3,
+			ease = "in",
+			pose = {
+				Waist = { y = -20, x = -10 },
+				RightShoulder = { x = 100, z = -10 },
+				RightElbow = { x = 20 },
+				LeftHip = { x = 40 },
+				LeftKnee = { x = -30 },
+			},
+		},
+		{
+			t = 0.6,
+			ease = "out",
+			pose = {
+				Root = { py = -0.5 },
+				Waist = { y = 80 },
+				RightShoulder = { x = 70, y = 30, z = 100 },
+				RightElbow = { x = 40 },
+				LeftShoulder = { z = -60 },
+			},
+		},
+		{
+			t = 0.85,
+			ease = "in",
+			pose = {
+				Root = { y = -360, py = -0.6 },
+				Waist = { y = -60 },
+				RightShoulder = { x = 95, y = -30, z = -20 },
+				RightElbow = { x = 0 },
+				LeftShoulder = { x = -30, z = -60 },
+			},
+		},
+		{
+			t = 1.1,
+			pose = {
+				Root = { y = -360, py = -0.6 },
+				Waist = { y = -50 },
+				RightShoulder = { x = 90, z = -15 },
+				LeftShoulder = { x = -30, z = -60 },
+			},
+		},
+		{ t = 1.3, ease = "inout", pose = { Root = { y = -360 } } },
+	},
+}
+
+Library.FinisherVictim = {
+	duration = 1.6,
+	hold = true,
+	keys = {
+		{ t = 0, pose = {} },
+		{
+			t = 0.3,
+			ease = "out",
+			pose = {
+				Root = { x = 10, py = -0.8 },
+				Waist = { x = 25 },
+				Neck = { x = 30 },
+				LeftKnee = { x = -70 },
+				RightKnee = { x = -40 },
+				LeftHip = { x = 40 },
+				LeftShoulder = { x = 20, z = -20 },
+				RightShoulder = { x = 20, z = 20 },
+			},
+		},
+		{
+			t = 1.6,
+			pose = {
+				Root = { x = 14, py = -1.6 },
+				Waist = { x = 35 },
+				Neck = { x = 40 },
+				LeftKnee = { x = -110 },
+				RightKnee = { x = -100 },
+				LeftHip = { x = 80 },
+				RightHip = { x = 60 },
+				LeftShoulder = { x = 10, z = -10 },
+				RightShoulder = { x = 10, z = 10 },
+			},
+		},
+	},
+}
+
 return Library

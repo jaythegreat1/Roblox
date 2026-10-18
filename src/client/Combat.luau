@@ -143,6 +143,47 @@ local function popText(position: Vector3, text: string, color: Color3, big: bool
 	Debris:AddItem(anchor, 0.75)
 end
 
+local function extraFx(kind: string, attacker: Model?, target: Model?, position: Vector3?, amount: number?)
+	local me = myCharacter()
+	if kind == "clash" and position then
+		burst(position, Color3.fromRGB(255, 255, 255), 45, 1.2)
+		burst(position, Color3.fromRGB(255, 200, 90), 25, 0.8)
+		popText(position, "CLASH", Color3.fromRGB(255, 230, 150), true)
+		Engine.play(attacker, "Clash")
+		Engine.play(target, "Clash")
+		Engine.freeze(attacker, 0.18)
+		Engine.freeze(target, 0.18)
+		if attacker == me or target == me then
+			shake(0.8, 0.3)
+		end
+	elseif kind == "grab" and position then
+		burst(position, Color3.fromRGB(255, 120, 80), 18, 0.8)
+		popText(position, tostring(amount or 0), Color3.fromRGB(255, 150, 90), true)
+		Engine.play(target, "HitHeavy")
+		if attacker == me or target == me then
+			shake(0.5, 0.2)
+		end
+	elseif kind == "finish" then
+		Engine.play(attacker, "FinisherOath")
+		Engine.play(target, "FinisherVictim")
+		setTrail(attacker, 1.2)
+	elseif kind == "finished" and position then
+		burst(position, Color3.fromRGB(220, 60, 200), 60, 1.6)
+		burst(position, Color3.fromRGB(255, 255, 255), 30, 1)
+		popText(position, "FINISHED", Color3.fromRGB(255, 120, 230), true)
+		Engine.stop(target)
+		if attacker == me or target == me then
+			shake(0.9, 0.35)
+		end
+	elseif kind == "finishbroken" and position then
+		popText(position, "INTERRUPTED", Color3.fromRGB(200, 200, 255), true)
+		Engine.stop(target)
+	else
+		return false
+	end
+	return true
+end
+
 local function involvesMe(a: Model?, b: Model?): boolean
 	local me = myCharacter()
 	return me ~= nil and (a == me or b == me)
@@ -307,6 +348,147 @@ function Combat.blockUp()
 	request:FireServer("BlockEnd")
 end
 
+-- The nearest enemy you could finish right now, if any.
+local function finishTarget(): Model?
+	local me = myCharacter()
+	local hrp = me and me:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then
+		return nil
+	end
+	local candidates = {}
+	for _, p in Players:GetPlayers() do
+		if p.Character and p.Character ~= me then
+			table.insert(candidates, p.Character)
+		end
+	end
+	for _, m in CollectionService:GetTagged("BladeRiftRig") do
+		table.insert(candidates, m)
+	end
+	for _, m in candidates do
+		local h = m:FindFirstChildOfClass("Humanoid")
+		local thrp = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local untilTime = m:GetAttribute("StunnedUntil")
+		if
+			h
+			and thrp
+			and h.Health > 0
+			and h.Health <= 15
+			and typeof(untilTime) == "number"
+			and workspace:GetServerTimeNow() < untilTime
+			and (thrp.Position - hrp.Position).Magnitude <= 7
+		then
+			return m
+		end
+	end
+	return nil
+end
+Combat.finishTarget = finishTarget
+
+-- Grab, or Finish when an enemy is low and stunned.
+function Combat.grabOrFinish()
+	if stunned() or blocking or charging or os.clock() < lockUntil then
+		return
+	end
+	if finishTarget() then
+		lockUntil = os.clock() + 1.5
+		Movement.lockFor(1.4)
+		request:FireServer("Finish")
+	else
+		lockUntil = os.clock() + 0.75
+		Movement.lockFor(0.6)
+		playSwing(myCharacter(), "GrabReach")
+		request:FireServer("Grab")
+	end
+end
+
+-- Lock-on: your character keeps facing the target, which is marked with a ring.
+local lockTarget: Model? = nil
+local lockMarker: BillboardGui? = nil
+local lockListeners: { (boolean) -> () } = {}
+
+local function clearLock()
+	lockTarget = nil
+	if lockMarker then
+		lockMarker:Destroy()
+		lockMarker = nil
+	end
+	local me = myCharacter()
+	local h = me and me:FindFirstChildOfClass("Humanoid")
+	if h then
+		h.AutoRotate = true
+	end
+	for _, fn in lockListeners do
+		fn(false)
+	end
+end
+
+function Combat.toggleLock()
+	if lockTarget then
+		clearLock()
+		return
+	end
+	local me = myCharacter()
+	local hrp = me and me:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then
+		return
+	end
+	local camLook = workspace.CurrentCamera.CFrame.LookVector
+	local best, bestScore = nil, -math.huge
+	local candidates = {}
+	for _, p in Players:GetPlayers() do
+		if p.Character and p.Character ~= me then
+			table.insert(candidates, p.Character)
+		end
+	end
+	for _, m in CollectionService:GetTagged("BladeRiftRig") do
+		table.insert(candidates, m)
+	end
+	for _, m in candidates do
+		local thrp = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local h = m:FindFirstChildOfClass("Humanoid")
+		if thrp and h and h.Health > 0 then
+			local offset = thrp.Position - hrp.Position
+			local dist = offset.Magnitude
+			if dist < 60 then
+				local score = camLook:Dot(offset.Unit) * 2 - dist / 30
+				if score > bestScore then
+					best, bestScore = m, score
+				end
+			end
+		end
+	end
+	if not best then
+		return
+	end
+	lockTarget = best
+	local marker = Instance.new("BillboardGui")
+	marker.Size = UDim2.fromOffset(46, 46)
+	marker.AlwaysOnTop = true
+	marker.Adornee = best:FindFirstChild("UpperTorso") or best:FindFirstChild("HumanoidRootPart")
+	local ring = Instance.new("ImageLabel")
+	ring.BackgroundTransparency = 1
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.Image = "rbxasset://textures/ui/Controls/DesignSystem/ButtonA@2x.png"
+	ring.ImageTransparency = 1
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 80, 120)
+	stroke.Thickness = 3
+	stroke.Parent = ring
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = ring
+	ring.Parent = marker
+	marker.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	lockMarker = marker
+	for _, fn in lockListeners do
+		fn(true)
+	end
+end
+
+function Combat.onLock(fn: (boolean) -> ())
+	table.insert(lockListeners, fn)
+end
+
 function Combat.onCombo(fn: (number) -> ())
 	table.insert(comboListeners, fn)
 end
@@ -316,7 +498,11 @@ function Combat.start(remotes: Folder, movement)
 	request = remotes:WaitForChild("Combat") :: RemoteEvent
 	local fxRemote = remotes:WaitForChild("CombatFx") :: RemoteEvent
 	local knockbackRemote = remotes:WaitForChild("Knockback") :: RemoteEvent
-	fxRemote.OnClientEvent:Connect(onFx)
+	fxRemote.OnClientEvent:Connect(function(kind, attacker, target, position, amount, extra)
+		if not extraFx(kind, attacker, target, position, amount) then
+			onFx(kind, attacker, target, position, amount, extra)
+		end
+	end)
 
 	knockbackRemote.OnClientEvent:Connect(function(velocity: Vector3)
 		local character = myCharacter()
@@ -357,6 +543,20 @@ function Combat.start(remotes: Folder, movement)
 			charging = false
 			pressing = false
 		end
+		if lockTarget then
+			local thrp = lockTarget:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local lh = lockTarget:FindFirstChildOfClass("Humanoid")
+			local hrp = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if not thrp or not lh or lh.Health <= 0 or not hrp or (thrp.Position - hrp.Position).Magnitude > 80 then
+				clearLock()
+			elseif humanoid and not Movement.isBusy() then
+				humanoid.AutoRotate = false
+				local flat = Vector3.new(thrp.Position.X, hrp.Position.Y, thrp.Position.Z)
+				if (flat - hrp.Position).Magnitude > 0.5 then
+					hrp.CFrame = CFrame.lookAt(hrp.Position, flat)
+				end
+			end
+		end
 		if humanoid then
 			humanoid.CameraOffset = if os.clock() < shakeUntil
 				then Vector3.new(math.random() - 0.5, math.random() - 0.5, 0) * shakeStrength
@@ -373,6 +573,10 @@ function Combat.start(remotes: Folder, movement)
 			Combat.attackDown()
 		elseif input.KeyCode == Enum.KeyCode.F then
 			Combat.blockDown()
+		elseif input.KeyCode == Enum.KeyCode.T or input.KeyCode == Enum.KeyCode.V then
+			Combat.grabOrFinish()
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.LeftControl then
+			Combat.toggleLock()
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)

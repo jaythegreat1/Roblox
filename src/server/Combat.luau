@@ -28,11 +28,14 @@ type State = {
 	chargingSince: number?,
 	guardBroken: boolean,
 	dummyMode: string?,
+	pendingStrikeAt: number?,
+	strikeToken: number,
 }
 
 local states: { [Model]: State } = {}
 local fxRemote: RemoteEvent
 local knockbackRemote: RemoteEvent
+local swingListeners: { (Model, any, boolean, number) -> () } = {}
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -58,6 +61,9 @@ local function stun(s: State, seconds: number)
 		s.model:SetAttribute("StunnedUntil", untilTime)
 	end
 	s.chargingSince = nil
+	-- Getting hit during a wind-up cancels the attack.
+	s.strikeToken += 1
+	s.pendingStrikeAt = nil
 	if s.blocking then
 		s.blocking = false
 		fx("stop", s.model, nil, nil, nil, "Block")
@@ -119,6 +125,26 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	end
 	local hitPos = target.hrp.Position + Vector3.new(0, 0.8, 0)
 
+	-- Clash: both fighters' strikes land within 0.12 s of each other while facing.
+	local pending = target.pendingStrikeAt
+	if pending and math.abs(pending - t) <= 0.12 and facing(target.hrp, attacker.hrp.Position, 120) then
+		stun(target, 0.5)
+		stun(attacker, 0.5)
+		for _, s in { attacker, target } do
+			s.lastPostureHit = t
+			setPosture(s, s.posture - 15)
+		end
+		knockback(target, attacker.hrp.Position, 28)
+		knockback(attacker, target.hrp.Position, 28)
+		fx(
+			"clash",
+			attacker.model,
+			target.model,
+			(attacker.hrp.Position + target.hrp.Position) / 2 + Vector3.new(0, 1, 0)
+		)
+		return
+	end
+
 	local blockingNow = target.blocking and facing(target.hrp, attacker.hrp.Position, C.blockArc)
 	local dummyParry = target.dummyMode == "Parry" and math.random() < 0.5
 	if dummyParry or (blockingNow and t - target.blockStart <= C.parryWindow) then
@@ -160,10 +186,11 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	fx("hit", attacker.model, target.model, hitPos, amount, isHeavy or move.knockback ~= nil)
 end
 
-local function resolve(attacker: State, move, isHeavy: boolean, amount: number)
-	if not alive(attacker) or stunned(attacker) then
+local function resolve(attacker: State, move, isHeavy: boolean, amount: number, token: number)
+	if not alive(attacker) or stunned(attacker) or token ~= attacker.strikeToken then
 		return -- interrupted during the wind-up
 	end
+	attacker.pendingStrikeAt = nil
 	for _, target in states do
 		if target ~= attacker and alive(target) then
 			local offset = (target.hrp.Position - attacker.hrp.Position) * Vector3.new(1, 0, 1)
@@ -188,7 +215,7 @@ local function onLight(s: State)
 	local move = SWORD.light[s.comboIndex]
 	s.busyUntil = t + move.lock - 0.05 -- small tolerance for network jitter
 	fx("swing", s.model, nil, nil, nil, move.anim)
-	task.delay(move.hitAt, resolve, s, move, false, move.damage)
+	Combat.schedule(s, move, false, move.damage)
 end
 
 local function onHeavyStart(s: State)
@@ -213,7 +240,7 @@ local function onHeavyRelease(s: State)
 	s.busyUntil = now() + h.lock - 0.05
 	s.comboIndex = 0
 	fx("swing", s.model, nil, nil, nil, h.anim)
-	task.delay(h.hitAt, resolve, s, h, true, amount)
+	Combat.schedule(s, h, true, amount)
 end
 
 local function onHeavyCancel(s: State)
@@ -251,7 +278,97 @@ local function onBlockEnd(s: State)
 	fx("stop", s.model, nil, nil, nil, "Block")
 end
 
+function Combat.schedule(s: State, move, isHeavy: boolean, amount: number)
+	s.strikeToken += 1
+	local token = s.strikeToken
+	s.pendingStrikeAt = now() + move.hitAt
+	for _, fn in swingListeners do
+		task.spawn(fn, s.model, move, isHeavy, s.pendingStrikeAt)
+	end
+	task.delay(move.hitAt, resolve, s, move, isHeavy, amount, token)
+end
+
+local function nearestInFront(s: State, range: number, arc: number, filter: ((State) -> boolean)?): State?
+	local best, bestDist = nil, math.huge
+	for _, target in states do
+		if target ~= s and alive(target) and (not filter or filter(target)) then
+			local dist = ((target.hrp.Position - s.hrp.Position) * Vector3.new(1, 0, 1)).Magnitude
+			if dist <= range and dist < bestDist and (dist < 2.5 or facing(s.hrp, target.hrp.Position, arc)) then
+				best, bestDist = target, dist
+			end
+		end
+	end
+	return best
+end
+
+-- Grab: slow start, ignores blocking, loses to any attack that lands first.
+local function onGrab(s: State)
+	local t = now()
+	if t < s.busyUntil or stunned(s) or s.blocking or s.chargingSince then
+		return
+	end
+	s.busyUntil = t + 0.75
+	s.comboIndex = 0
+	s.strikeToken += 1
+	local token = s.strikeToken
+	fx("swing", s.model, nil, nil, nil, "GrabReach")
+	task.delay(0.35, function()
+		if token ~= s.strikeToken or not alive(s) or stunned(s) then
+			return
+		end
+		local target = nearestInFront(s, 5.5, 100)
+		if not target then
+			return
+		end
+		local invul = target.model:GetAttribute("InvulnerableUntil")
+		if typeof(invul) == "number" and now() < invul then
+			fx("dodge", s.model, target.model, target.hrp.Position)
+			return
+		end
+		damage(target, 12)
+		stun(target, 0.9)
+		knockback(target, s.hrp.Position, 42)
+		fx("grab", s.model, target.model, target.hrp.Position + Vector3.new(0, 1, 0), 12)
+	end)
+end
+
+-- Finisher: on an enemy at 15 health or less who is stunned. Anyone can interrupt it.
+local FINISH_HEALTH = 15
+local function onFinish(s: State)
+	local t = now()
+	if t < s.busyUntil or stunned(s) or s.blocking then
+		return
+	end
+	local target = nearestInFront(s, 7, 160, function(target)
+		return target.humanoid.Health <= FINISH_HEALTH
+			and stunned(target)
+			and not target.model:GetAttribute("BeingFinished")
+	end)
+	if not target then
+		return
+	end
+	s.busyUntil = t + 1.5
+	s.strikeToken += 1
+	local token = s.strikeToken
+	target.model:SetAttribute("BeingFinished", true)
+	stun(target, 1.6)
+	fx("finish", s.model, target.model, target.hrp.Position)
+	task.delay(1.1, function()
+		if target.model.Parent then
+			target.model:SetAttribute("BeingFinished", nil)
+		end
+		if token ~= s.strikeToken or not alive(s) then
+			fx("finishbroken", s.model, target.model, target.hrp.Position)
+			return
+		end
+		fx("finished", s.model, target.model, target.hrp.Position + Vector3.new(0, 1, 0))
+		damage(target, target.humanoid.Health)
+	end)
+end
+
 local handlers = {
+	Grab = onGrab,
+	Finish = onFinish,
 	Light = onLight,
 	HeavyStart = onHeavyStart,
 	HeavyRelease = onHeavyRelease,
@@ -292,6 +409,8 @@ function Combat.register(model: Model, dummyMode: string?)
 		chargingSince = nil,
 		guardBroken = false,
 		dummyMode = dummyMode,
+		pendingStrikeAt = nil,
+		strikeToken = 0,
 	}
 	states[model] = s
 	setPosture(s, C.maxPosture)
@@ -301,6 +420,16 @@ function Combat.register(model: Model, dummyMode: string?)
 	humanoid.Died:Connect(function()
 		states[model] = nil
 	end)
+end
+
+-- Lets AI fighters react to swings: (attacker, move, isHeavy, server time the hit lands).
+function Combat.onSwing(fn: (Model, any, boolean, number) -> ())
+	table.insert(swingListeners, fn)
+end
+
+function Combat.isBlocking(model: Model): boolean
+	local s = states[model]
+	return s ~= nil and s.blocking
 end
 
 function Combat.start(remotes: Folder)

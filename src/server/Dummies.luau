@@ -44,6 +44,9 @@ function Dummies.spawn(center: Vector3)
 			CollectionService:AddTag(model, "BladeRiftRig")
 			Overhead.attach(model, info.label)
 			Combat.register(model, info.mode)
+			pcall(function()
+				(model:FindFirstChild("HumanoidRootPart") :: BasePart):SetNetworkOwner(nil)
+			end)
 			if info.mode == "Block" then
 				-- Clients learn the dummy is blocking through the same effect message players use.
 				task.wait(2)

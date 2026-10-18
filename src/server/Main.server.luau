@@ -62,5 +62,6 @@ require(script.Parent.Characters).start(spawnPad, function(model, player)
 	Combat.register(model)
 end)
 require(script.Parent.Dummies).spawn(spawnPad.Position)
+require(script.Parent.Bot).spawn(spawnPad.Position + Vector3.new(0, 0, 40))
 
 print(`Blade Rift server started, version {Config.Version}`)

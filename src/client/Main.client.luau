@@ -106,12 +106,21 @@ if UserInputService.TouchEnabled then
 	block.MouseLeave:Connect(Combat.blockUp)
 	local dodge = button("Dodge", -175, -185, 56, false, Movement.dodge)
 	button("Dash", -255, -150, 48, false, Movement.dash)
-	button("Grab", -285, -60, 48)
+	local grab = button("Grab", -285, -60, 48, false, Combat.grabOrFinish)
 	button("Echo 1", -275, -245, 50)
 	button("Echo 2", -205, -285, 50)
 	button("Echo 3", -135, -295, 50)
 	button("Surge", -60, -265, 56, true)
-	button("Lock", -330, -210, 42)
+	local lock = button("Lock", -330, -210, 42, false, Combat.toggleLock)
+	Combat.onLock(function(on)
+		lock.BackgroundColor3 = if on then Color3.fromRGB(255, 80, 120) else Color3.fromRGB(30, 26, 40)
+	end)
+	-- The Grab button turns into FINISH when an enemy can be finished.
+	RunService.Heartbeat:Connect(function()
+		local canFinish = Combat.finishTarget() ~= nil
+		grab.Text = if canFinish then "FINISH" else "Grab"
+		grab.BackgroundColor3 = if canFinish then Color3.fromRGB(220, 60, 200) else Color3.fromRGB(30, 26, 40)
+	end)
 	local sprint = button("Sprint", -340, -110, 48, false, function() end)
 	sprint.Activated:Connect(function()
 		Movement.toggleSprint()
