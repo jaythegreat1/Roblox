@@ -2,7 +2,7 @@
 -- Shared constants for Blade Rift. Values come from the master plan.
 local Config = {}
 
-Config.Version = "0.1.0-alpha (Phase 0)"
+Config.Version = "0.2.0-alpha (Phase 1)"
 
 Config.Character = {
 	WalkSpeed = 16,
@@ -17,6 +17,21 @@ Config.Character = {
 		BodyType = 0,
 		Proportion = 0,
 	},
+}
+
+Config.Movement = {
+	DodgeCharges = 2,
+	DodgeRefill = 4,
+	RollDistance = 14,
+	RollTime = 0.42,
+	RollIFrames = 0.25,
+	DashDistance = 12,
+	DashTime = 0.3,
+	SlideSpeed = 34,
+	SlideTime = 0.8,
+	AirDashDistance = 10,
+	DoubleJumpVelocity = 55,
+	HardLandingSpeed = 90,
 }
 
 Config.Arena = {

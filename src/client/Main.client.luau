@@ -5,10 +5,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ScriptContext = game:GetService("ScriptContext")
 local UserInputService = game:GetService("UserInputService")
 local Config = require(ReplicatedStorage.Shared.Config)
+local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
+local Movement = require(script.Parent.Movement)
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild(Config.RemoteFolderName)
 local clientError = remotes:WaitForChild("ClientError") :: RemoteEvent
+local actionRemote = remotes:WaitForChild("Action") :: RemoteEvent
+
+Engine.start()
+Movement.start(actionRemote)
+
+-- Other players' moves arrive here and play on their characters locally.
+actionRemote.OnClientEvent:Connect(function(who: Player, name: string)
+	if who ~= player and who.Character then
+		Engine.play(who.Character, name)
+	end
+end)
 
 ScriptContext.Error:Connect(function(message, trace)
 	clientError:FireServer(message, trace)
@@ -44,7 +57,7 @@ feedback.Text = ""
 feedback.Parent = gui
 
 -- Buttons sit in the right-thumb cluster; positions mirror the master plan mock-up.
-local function button(name: string, x: number, y: number, size: number, accent: boolean?)
+local function button(name: string, x: number, y: number, size: number, accent: boolean?, onTap: (() -> ())?)
 	local b = Instance.new("TextButton")
 	b.Name = name
 	b.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -66,9 +79,13 @@ local function button(name: string, x: number, y: number, size: number, accent: 
 	stroke.Parent = b
 	b.Parent = gui
 	b.Activated:Connect(function()
-		feedback.Text = name
+		if onTap then
+			onTap()
+			return
+		end
+		feedback.Text = name .. " (coming in Phase 2)"
 		task.delay(0.6, function()
-			if feedback.Text == name then
+			if feedback.Text == name .. " (coming in Phase 2)" then
 				feedback.Text = ""
 			end
 		end)
@@ -79,32 +96,22 @@ end
 if UserInputService.TouchEnabled then
 	button("Attack", -110, -110, 88, true)
 	button("Block", -210, -70, 56)
-	button("Dodge", -175, -185, 56)
-	button("Dash", -255, -150, 48)
+	local dodge = button("Dodge", -175, -185, 56, false, Movement.dodge)
+	button("Dash", -255, -150, 48, false, Movement.dash)
 	button("Grab", -285, -60, 48)
 	button("Echo 1", -275, -245, 50)
 	button("Echo 2", -205, -285, 50)
 	button("Echo 3", -135, -295, 50)
 	button("Surge", -60, -265, 56, true)
 	button("Lock", -330, -210, 42)
+	local sprint = button("Sprint", -340, -110, 48, false, function() end)
+	sprint.Activated:Connect(function()
+		Movement.toggleSprint()
+		sprint.BackgroundColor3 = if sprint.BackgroundColor3 == Color3.fromRGB(30, 26, 40)
+			then Color3.fromRGB(120, 90, 255)
+			else Color3.fromRGB(30, 26, 40)
+	end)
+	Movement.onCharges(function(n)
+		dodge.Text = "Dodge\n" .. string.rep("● ", n) .. string.rep("○ ", 2 - n)
+	end)
 end
-
--- Sprint: Shift on PC, joystick at its edge on phones (approximated by move speed input).
-local function setSpeed(sprinting: boolean)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.WalkSpeed = if sprinting then Config.Character.SprintSpeed else Config.Character.WalkSpeed
-	end
-end
-
-UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.LeftShift then
-		setSpeed(true)
-	end
-end)
-UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		setSpeed(false)
-	end
-end)

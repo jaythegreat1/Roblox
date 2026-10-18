@@ -27,7 +27,7 @@ function Arena.build(): BasePart
 		Size = Vector3.new(4, r * 2, r * 2),
 		CFrame = CFrame.new(0, -2, 0) * CFrame.Angles(0, 0, math.rad(90)),
 		Material = Enum.Material.Slate,
-		Color = Color3.fromRGB(70, 66, 78),
+		Color = Color3.fromRGB(150, 140, 160),
 		Parent = folder,
 	})
 

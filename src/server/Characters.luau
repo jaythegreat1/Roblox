@@ -29,8 +29,14 @@ end
 
 function Characters.start(spawnPad: BasePart)
 	local function spawnPlayer(player: Player)
-		local model = Players:CreateHumanoidModelFromDescription(normalizedDescription(player), Enum.HumanoidRigType.R15)
+		local model =
+			Players:CreateHumanoidModelFromDescription(normalizedDescription(player), Enum.HumanoidRigType.R15)
 		model.Name = player.Name
+		-- Our own engine animates everyone; the default Animate script would fight it.
+		local animate = model:FindFirstChild("Animate")
+		if animate then
+			animate:Destroy()
+		end
 		local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 		humanoid.MaxHealth = Config.Character.MaxHealth
 		humanoid.Health = Config.Character.MaxHealth
