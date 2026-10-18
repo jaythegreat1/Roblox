@@ -779,9 +779,9 @@ end
 -- Copies a player's saved loadout (or the default) onto a freshly spawned fighter.
 function Echoes.setup(model: Model, player: Player?, loadout: { string }?)
 	for i, slot in Data.Slots do
-		local saved = player and player:GetAttribute(slot)
-		local id = if Data.fits(saved, slot) then saved else (loadout or Data.DefaultLoadout)[i]
-		model:SetAttribute(slot, id)
+		-- Players carry the Echoes they own and equipped (from their saved profile); AI gets a set.
+		local id = if player then player:GetAttribute(slot) else (loadout or Data.DefaultLoadout)[i]
+		model:SetAttribute(slot, if Data.fits(id, slot) then id else nil)
 	end
 	refreshAttunement(model)
 end
@@ -808,6 +808,13 @@ local function onLoadout(s, arg)
 	end
 	local model = s.model
 	local player = Players:GetPlayerFromCharacter(model)
+	if player and Echoes.canEquip then
+		local ok, why = Echoes.canEquip(player, model, slot, id)
+		if not ok then
+			notify(s, why or "Can't equip that")
+			return
+		end
+	end
 	-- Putting an Echo that is already in another slot swaps the two.
 	local previous = model:GetAttribute(slot)
 	for _, other in Data.Slots do
@@ -847,6 +854,7 @@ local function riftBurst(s)
 		return
 	end
 	s.model:SetAttribute(cooldownKey("RiftBurst"), t + Data.Surge.riftBurstCooldown)
+	Combat.emit("riftburst", s)
 	s.model:SetAttribute("Surge", surge - Data.Surge.riftBurstCost)
 	s.model:SetAttribute("StunnedUntil", nil)
 	s.model:SetAttribute("BurstUntil", nil)
@@ -924,6 +932,8 @@ local function cast(s, arg)
 	local token = s.strikeToken
 	Combat.fx("swing", s.model, nil, nil, nil, e.anim)
 	echoFx(s, e.id, { phase = "cast", pos = s.hrp.Position })
+	s.currentCast = { id = e.id, targets = {} }
+	Combat.emit("echo", s, e.id)
 	local function go()
 		local armored = mythic or now() < s.armorUntil
 		if not Combat.alive(s) then

@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Data = require(ReplicatedStorage.Shared.Combat.Echoes)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local EchoHud = {}
 
@@ -109,7 +110,7 @@ local function hidden(overhead: Instance): boolean
 	return typeof(untilTime) == "number" and workspace:GetServerTimeNow() < untilTime
 end
 
-function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Combat)
+function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Combat, Progress)
 	local slots = buttons or pcSlots(gui)
 	if not buttons then
 		for slot, b in slots do
@@ -131,7 +132,7 @@ function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Comba
 	-- Your statuses, under the health panel.
 	local statusLine = Instance.new("TextLabel")
 	statusLine.BackgroundTransparency = 1
-	statusLine.Position = UDim2.fromOffset(18, 86)
+	statusLine.Position = UDim2.fromOffset(18, 114)
 	statusLine.Size = UDim2.fromOffset(320, 22)
 	statusLine.Font = Enum.Font.GothamBold
 	statusLine.TextSize = 14
@@ -246,11 +247,11 @@ function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Comba
 		end
 	end)
 
-	EchoHud.buildMenu(gui, Combat)
+	EchoHud.buildMenu(gui, Combat, Progress)
 end
 
 -- The loadout menu: every Echo, grouped by element, with buttons to slot it.
-function EchoHud.buildMenu(gui: ScreenGui, Combat)
+function EchoHud.buildMenu(gui: ScreenGui, Combat, Progress)
 	local open = Instance.new("TextButton")
 	open.Name = "EchoesButton"
 	open.AnchorPoint = Vector2.new(1, 0)
@@ -308,13 +309,13 @@ function EchoHud.buildMenu(gui: ScreenGui, Combat)
 
 	label("Echo Loadout", 22, Color3.new(1, 1, 1), 0, 28)
 	label(
-		"All Echoes are unlocked for testing. Quests and capacity limits arrive with progression. Change Echoes out of combat; Mythics go in the Surge slot and fire when Surge is full.",
+		"Earn Echoes from quests (open Quests). Each costs Echo Capacity by rarity; Mythics go in the Surge slot and fire when Surge is full.",
 		13,
 		Color3.fromRGB(200, 195, 220),
 		1,
 		36
 	)
-	local current = label("", 14, Color3.fromRGB(255, 220, 120), 2, 40)
+	local current = label("", 14, Color3.fromRGB(255, 220, 120), 2, 50)
 	current.RichText = true
 
 	local slotButtons: { { button: TextButton, slot: string, id: string } } = {}
@@ -397,14 +398,26 @@ function EchoHud.buildMenu(gui: ScreenGui, Combat)
 			b.Activated:Connect(function()
 				Combat.setLoadout(slot, e.id)
 			end)
-			table.insert(slotButtons, { button = b, slot = slot, id = e.id })
+			table.insert(slotButtons, { button = b, slot = slot, id = e.id, title = title, meta = meta })
 		end
 	end
 
 	local function refresh()
+		local data = Progress.data()
 		for _, sb in slotButtons do
+			local owned = data == nil or data.echoes[sb.id] == true
 			local equipped = attr(sb.slot) == sb.id
-			sb.button.BackgroundColor3 = if equipped then Color3.fromRGB(60, 160, 100) else Color3.fromRGB(90, 70, 160)
+			sb.button.BackgroundColor3 = if not owned
+				then Color3.fromRGB(60, 56, 70)
+				elseif equipped then Color3.fromRGB(60, 160, 100)
+				else Color3.fromRGB(90, 70, 160)
+			sb.button.TextTransparency = if owned then 0 else 0.5
+			local e = Data.get(sb.id)
+			sb.title.TextColor3 = if owned then Data.Rarity[e.rarity].color else Color3.fromRGB(120, 115, 135)
+			local quest = Progression.QuestForEcho[sb.id]
+			if not owned and quest then
+				sb.meta.Text = `Locked · quest {quest.name} (Lv {quest.level})`
+			end
 		end
 		local names = {}
 		for i, slot in Data.Slots do
@@ -413,7 +426,17 @@ function EchoHud.buildMenu(gui: ScreenGui, Combat)
 			table.insert(names, `{key}: <b>{if e then e.name else "empty"}</b>`)
 		end
 		local attuned = if attr("Attuned") then "   ·   Attuned: statuses last 15% longer" else ""
-		current.Text = table.concat(names, "   ") .. attuned
+		local used = 0
+		for i = 1, 3 do
+			local e = Data.get(attr("Echo" .. i))
+			if e then
+				used += Data.Rarity[e.rarity].cost
+			end
+		end
+		local cap = if data then data.capacity else 3
+		current.Text = table.concat(names, "   ")
+			.. attuned
+			.. `\nEcho Capacity: <b>{used}/{cap}</b> (grows with your level)`
 	end
 
 	open.Activated:Connect(function()

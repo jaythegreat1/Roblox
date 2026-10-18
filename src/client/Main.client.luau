@@ -9,6 +9,7 @@ local Movement = require(script.Parent.Movement)
 local Combat = require(script.Parent.Combat)
 local Armory = require(script.Parent.Armory)
 local EchoHud = require(script.Parent.EchoHud)
+local Progress = require(script.Parent.Progress)
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
@@ -260,5 +261,6 @@ if player.Character then
 end
 player.CharacterAdded:Connect(onCharacter)
 
-Armory.build(gui, Combat.equip)
-EchoHud.build(gui, if next(echoButtons) then echoButtons else nil, Combat)
+Progress.start(remotes, gui)
+Armory.build(gui, Combat.equip, Progress)
+EchoHud.build(gui, if next(echoButtons) then echoButtons else nil, Combat, Progress)

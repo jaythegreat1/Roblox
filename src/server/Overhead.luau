@@ -43,6 +43,14 @@ function Overhead.attach(model: Model, label: string, hideFrom: Player?)
 	name.TextStrokeTransparency = 0.4
 	name.Text = label
 	name.Parent = gui
+	-- Players show their level in front of their name.
+	if hideFrom then
+		local function setName()
+			name.Text = `Lv {hideFrom:GetAttribute("Level") or 1} · {label}`
+		end
+		hideFrom:GetAttributeChangedSignal("Level"):Connect(setName)
+		setName()
+	end
 
 	local health = bar(gui, 18, 7, Color3.fromRGB(90, 220, 120))
 	local posture = bar(gui, 27, 4, Color3.fromRGB(250, 200, 70))

@@ -58,6 +58,7 @@ local function build(home: Vector3): Model
 	desc.RightLegColor = desc.TorsoColor
 	local model = Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
 	model.Name = "SparringBot"
+	model:SetAttribute("IsBot", true)
 	local animate = model:FindFirstChild("Animate")
 	if animate then
 		animate:Destroy()

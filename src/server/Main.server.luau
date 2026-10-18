@@ -17,6 +17,13 @@ local Combat = require(script.Parent.Combat)
 Combat.start(remotes)
 local Echoes = require(script.Parent.Echoes)
 Echoes.start(remotes)
+local Profile = require(script.Parent.Profile)
+Profile.start(remotes)
+local Quests = require(script.Parent.Quests)
+Quests.start()
+-- Only swords you own and Echoes you have earned (within your Echo Capacity) can be equipped.
+Combat.canEquipSword = Profile.ownsSword
+Echoes.canEquip = Profile.canEquipEcho
 remotes.Parent = ReplicatedStorage
 
 local ErrorLog = require(script.Parent.ErrorLog)
@@ -40,6 +47,7 @@ action.OnServerEvent:Connect(function(player, name)
 	end
 	table.insert(stamps, now)
 	lastAction[player] = stamps
+	Quests.onAction(player, name)
 	local character = player.Character
 	if character and DODGES[name] then
 		-- Rolls are invulnerable for their first 0.25 s; the server is the one that checks it.
@@ -62,6 +70,7 @@ local spawnPad = require(script.Parent.Arena).build()
 local Sword = require(script.Parent.Sword)
 local Overhead = require(script.Parent.Overhead)
 require(script.Parent.Characters).start(spawnPad, function(model, player)
+	Profile.waitLoaded(player)
 	Sword.attach(model, player:GetAttribute("SwordId") :: string?)
 	Overhead.attach(model, player.DisplayName, player)
 	Combat.register(model)

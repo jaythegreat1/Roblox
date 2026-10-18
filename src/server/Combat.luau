@@ -43,6 +43,11 @@ type State = {
 	statusOrder: { string },
 	burnSource: any?,
 	baseWalkSpeed: number?,
+	lastHitBy: any?,
+	lastHitByAt: number?,
+	lastParryAt: number?,
+	finishedBy: any?,
+	currentCast: any?,
 	nextBurnAt: number?,
 }
 
@@ -52,6 +57,17 @@ local fxRemote: RemoteEvent
 local knockbackRemote: RemoteEvent
 local swingListeners: { (Model, any, boolean, number) -> () } = {}
 local landedListeners: { (any, any, any, boolean) -> () } = {}
+
+-- Fight events for quests, XP and tasks: Combat.on(name, fn) / emit(name, ...).
+local eventListeners: { [string]: { (...any) -> () } } = {}
+local function emit(name: string, ...)
+	local list = eventListeners[name]
+	if list then
+		for _, fn in list do
+			task.spawn(fn, ...)
+		end
+	end
+end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -173,6 +189,11 @@ local function hurt(attacker: State?, target: State, amount: number, tick: boole
 		amount *= 1.2
 		target.model:SetAttribute("Status_Mark", nil)
 	end
+	if attacker and attacker ~= target then
+		target.lastHitBy = attacker
+		target.lastHitByAt = now()
+		emit("damage", attacker, target, amount)
+	end
 	damage(target, amount)
 	addSurge(attacker, amount * Echoes.Surge.perDamageDealt)
 	addSurge(target, amount * Echoes.Surge.perDamageTaken)
@@ -207,6 +228,7 @@ function applyStatus(target: State, name: string, duration: number?, source: Sta
 		end
 	end
 	table.insert(order, name)
+	emit("status", source, target, name)
 	if name == "Chill" then
 		-- Chill stacks up to 3; the third stack Freezes. Status_Chill is the next decay time.
 		local stacks = (target.model:GetAttribute("ChillStacks") or 0) + 1
@@ -265,6 +287,9 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	local invul = target.model:GetAttribute("InvulnerableUntil")
 	if typeof(invul) == "number" and t < invul then
 		fx("dodge", attacker.model, target.model, target.hrp.Position)
+		-- A Rift Step: the roll started in the last instant before the hit.
+		local rollStart = invul - 0.25
+		emit("dodge", target, attacker, t - rollStart < 0.12)
 		return
 	end
 	local hitPos = target.hrp.Position + Vector3.new(0, 0.8, 0)
@@ -310,6 +335,7 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		end
 		knockback(target, attacker.hrp.Position, 28)
 		knockback(attacker, target.hrp.Position, 28)
+		emit("clash", attacker, target)
 		fx(
 			"clash",
 			attacker.model,
@@ -329,6 +355,8 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		target.parriedDuringBlock = true
 		target.riposteUntil = t + 1
 		addSurge(target, Echoes.Surge.perParry)
+		target.lastParryAt = t
+		emit("parry", target, attacker, move)
 		if not move.ranged then
 			stun(attacker, C.parriedStun)
 		end
@@ -339,6 +367,7 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	if blockingNow then
 		local chip = amount * (1 - C.blockReduction)
 		hurt(attacker, target, chip)
+		emit("block", target, attacker, amount - chip)
 		target.lastPostureHit = t
 		local postureCost = move.posture * (if swordOf(target).passive == "steadfast" then 0.85 else 1)
 		if hasStatus(target, "Fracture") then
@@ -349,6 +378,7 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 			target.guardBroken = true
 			stun(target, C.guardBreakStun)
 			fx("guardbreak", attacker.model, target.model, hitPos)
+			emit("guardbreak", attacker, target)
 			task.delay(C.guardBreakStun, function()
 				target.guardBroken = false
 				if target.model.Parent then
@@ -371,7 +401,15 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		attacker.frenzyStacks = 1
 	end
 	attacker.lastHitLandedAt = t
+	local info = {
+		behind = not facing(target.hrp, attacker.hrp.Position, 180),
+		counterHit = target.pendingStrikeAt ~= nil or target.chargingSince ~= nil,
+		airborne = attacker.humanoid.FloorMaterial == Enum.Material.Air,
+		onAirborne = hasStatus(target, "Airborne") or target.humanoid.FloorMaterial == Enum.Material.Air,
+		punish = t - (attacker.lastParryAt or 0) < 1,
+	}
 	amount = hurt(attacker, target, amount)
+	emit("hit", attacker, target, move, isHeavy, info)
 	if t - target.chainLastAt > 1.5 then
 		target.chainCount = 0
 	end
@@ -514,6 +552,7 @@ local function onHeavyCancel(s: State)
 		return
 	end
 	s.chargingSince = nil
+	emit("feint", s)
 	setPosture(s, s.posture - 15)
 	s.lastPostureHit = now()
 	fx("stop", s.model, nil, nil, nil, swordOf(s).heavy.charge)
@@ -603,7 +642,8 @@ local function onGrab(s: State)
 			fx("dodge", s.model, target.model, target.hrp.Position)
 			return
 		end
-		damage(target, 12)
+		hurt(s, target, 12)
+		emit("grab", s, target)
 		stun(target, 0.9)
 		knockback(target, s.hrp.Position, 42)
 		fx("grab", s.model, target.model, target.hrp.Position + Vector3.new(0, 1, 0), 12)
@@ -640,12 +680,19 @@ local function onFinish(s: State)
 			return
 		end
 		fx("finished", s.model, target.model, target.hrp.Position + Vector3.new(0, 1, 0))
-		damage(target, target.humanoid.Health)
+		target.finishedBy = s
+		emit("finisher", s, target)
+		hurt(s, target, target.humanoid.Health)
 	end)
 end
 
 local function onEquip(s: State, id: any)
 	if typeof(id) ~= "string" or not table.find(Swords.Order, id) then
+		return
+	end
+	local owner = Players:GetPlayerFromCharacter(s.model)
+	if owner and Combat.canEquipSword and not Combat.canEquipSword(owner, id) then
+		Combat.notice(owner, "You don't own that sword yet")
 		return
 	end
 	if stunned(s) or s.blocking or s.chargingSince or now() < s.busyUntil then
@@ -733,6 +780,9 @@ function Combat.register(model: Model, dummyMode: string?)
 	local carried = player and player:GetAttribute("SurgeCarry")
 	model:SetAttribute("Surge", if typeof(carried) == "number" then carried else 0)
 	humanoid.Died:Connect(function()
+		-- Credit the KO to whoever hit last (within 10 s).
+		local killer = if s.lastHitBy and now() - (s.lastHitByAt or 0) < 10 then s.lastHitBy else nil
+		emit("ko", killer, s, s.finishedBy ~= nil and s.finishedBy == killer)
 		states[model] = nil
 		-- Half of the Surge meter is lost on a KO.
 		if player then
@@ -756,6 +806,12 @@ Combat.clearStatuses = clearStatuses
 Combat.hasStatus = hasStatus
 Combat.hurt = hurt
 Combat.active = active
+
+function Combat.on(name: string, fn: (...any) -> ())
+	eventListeners[name] = eventListeners[name] or {}
+	table.insert(eventListeners[name], fn)
+end
+Combat.emit = emit
 
 -- Runs after every hit that lands (Umbral Fangs and similar Strike Echoes use it).
 function Combat.onLanded(fn: (any, any, any, boolean) -> ())
@@ -781,6 +837,7 @@ end
 function Combat.echoHit(attacker: State, target: State, amount: number, opts)
 	local move = table.clone(opts or {})
 	move.echo = true
+	move.cast = attacker.currentCast
 	move.posture = move.posture or 10
 	applyHit(attacker, target, move, opts and opts.heavy == true, amount)
 end

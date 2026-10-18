@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Swords = require(ReplicatedStorage.Shared.Combat.Swords)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local Armory = {}
 
@@ -21,7 +22,7 @@ local function corner(parent: Instance, radius: number)
 	c.Parent = parent
 end
 
-function Armory.build(gui: ScreenGui, onEquip: (string) -> ())
+function Armory.build(gui: ScreenGui, onEquip: (string) -> (), Progress)
 	local player = Players.LocalPlayer
 
 	local open = Instance.new("TextButton")
@@ -70,7 +71,7 @@ function Armory.build(gui: ScreenGui, onEquip: (string) -> ())
 	title.TextSize = 22
 	title.TextColor3 = Color3.new(1, 1, 1)
 	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "Armory  ·  all swords unlocked for testing"
+	title.Text = "Armory  ·  swords unlock with levels and coins"
 	title.LayoutOrder = 0
 	title.ZIndex = 21
 	title.Parent = panel
@@ -79,10 +80,25 @@ function Armory.build(gui: ScreenGui, onEquip: (string) -> ())
 
 	local function refresh()
 		local current = player.Character and player.Character:GetAttribute("SwordId") or "IronOath"
+		local data = Progress.data()
 		for id, b in equipButtons do
-			local equipped = id == current
-			b.Text = if equipped then "Equipped" else "Equip"
-			b.BackgroundColor3 = if equipped then Color3.fromRGB(60, 160, 100) else Color3.fromRGB(120, 90, 255)
+			local info = Progression.Swords[id]
+			if data and not data.swords[id] then
+				-- Not owned yet: shows the level gate, then the price.
+				if data.level < info.level then
+					b.Text = `Lv {info.level}`
+					b.BackgroundColor3 = Color3.fromRGB(70, 66, 84)
+				else
+					b.Text = `Buy {Progress.commas(info.coins)}`
+					b.BackgroundColor3 = if data.coins >= info.coins
+						then Color3.fromRGB(200, 150, 40)
+						else Color3.fromRGB(110, 90, 50)
+				end
+			else
+				local equipped = id == current
+				b.Text = if equipped then "Equipped" else "Equip"
+				b.BackgroundColor3 = if equipped then Color3.fromRGB(60, 160, 100) else Color3.fromRGB(120, 90, 255)
+			end
 		end
 	end
 
@@ -150,7 +166,12 @@ function Armory.build(gui: ScreenGui, onEquip: (string) -> ())
 		equip.Parent = card
 		corner(equip, 10)
 		equip.Activated:Connect(function()
-			onEquip(id)
+			local data = Progress.data()
+			if data and not data.swords[id] then
+				Progress.action("BuySword", id)
+			else
+				onEquip(id)
+			end
 			task.delay(0.4, refresh)
 		end)
 		equipButtons[id] = equip
@@ -161,6 +182,7 @@ function Armory.build(gui: ScreenGui, onEquip: (string) -> ())
 		open.Text = if panel.Visible then "Close" else "Swords"
 		refresh()
 	end)
+	Progress.onChange(refresh)
 end
 
 return Armory
