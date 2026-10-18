@@ -2,7 +2,7 @@
 -- Shared constants for Blade Rift. Values come from the master plan.
 local Config = {}
 
-Config.Version = "0.4.1-alpha (fixes)"
+Config.Version = "0.5.0-alpha (Phase 3: six swords)"
 
 Config.Character = {
 	WalkSpeed = 16,

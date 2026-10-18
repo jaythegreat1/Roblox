@@ -13,7 +13,11 @@ local Swords = require(ReplicatedStorage.Shared.Combat.Swords)
 
 local Combat = {}
 
-local SWORD = Swords.IronOath
+-- The sword you are holding right now (changes when you equip another in the Armory).
+local function currentSword()
+	local character = Players.LocalPlayer.Character
+	return Swords.get(character and character:GetAttribute("SwordId"))
+end
 local player = Players.LocalPlayer
 local request: RemoteEvent
 local Movement
@@ -35,14 +39,16 @@ local function myCharacter(): Model?
 end
 
 local function setTrail(model: Model?, seconds: number)
-	local sword = model and model:FindFirstChild("Sword")
-	local blade = sword and sword:FindFirstChild("Blade")
-	local trail = blade and blade:FindFirstChildOfClass("Trail")
-	if trail then
-		trail.Enabled = true
-		task.delay(seconds, function()
-			trail.Enabled = false
-		end)
+	for _, name in { "Sword", "SwordOffhand" } do
+		local sword = model and model:FindFirstChild(name)
+		local blade = sword and sword:FindFirstChild("Blade")
+		local trail = blade and blade:FindFirstChildOfClass("Trail")
+		if trail then
+			trail.Enabled = true
+			task.delay(seconds, function()
+				trail.Enabled = false
+			end)
+		end
 	end
 end
 
@@ -175,6 +181,43 @@ local function extraFx(kind: string, attacker: Model?, target: Model?, position:
 		if attacker == me or target == me then
 			shake(0.9, 0.35)
 		end
+	elseif kind == "toss" and attacker then
+		-- Twin Fangs heavy: both daggers spin out 20 studs and fly back.
+		local hrp = attacker:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local sword = attacker:FindFirstChild("Sword")
+		local blade = sword and sword:FindFirstChild("Blade") :: BasePart?
+		if hrp and blade then
+			for side = -1, 1, 2 do
+				local copy = blade:Clone()
+				for _, c in copy:GetChildren() do
+					if not c:IsA("Trail") and not c:IsA("Attachment") then
+						c:Destroy()
+					end
+				end
+				copy.Anchored = true
+				local trail = copy:FindFirstChildOfClass("Trail")
+				if trail then
+					trail.Enabled = true
+				end
+				copy.Parent = workspace
+				local start = hrp.Position + Vector3.new(0, 1, 0)
+				local outPos = start + hrp.CFrame.LookVector * 20 + hrp.CFrame.RightVector * side * 3
+				task.spawn(function()
+					local t0 = os.clock()
+					while os.clock() - t0 < 0.65 and copy.Parent do
+						local a = (os.clock() - t0) / 0.65
+						local pos = start:Lerp(outPos, math.sin(a * math.pi))
+						copy.CFrame = CFrame.new(pos) * CFrame.Angles(0, a * 40, math.pi / 2)
+						task.wait()
+					end
+					copy:Destroy()
+				end)
+			end
+		end
+	elseif kind == "armor" and position then
+		popText(position, "UNSTOPPABLE", Color3.fromRGB(255, 150, 60))
+	elseif kind == "equip" and position then
+		burst(position + Vector3.new(0, 1, 0), Color3.fromRGB(220, 60, 200), 30, 1)
 	elseif kind == "finishbroken" and position then
 		popText(position, "INTERRUPTED", Color3.fromRGB(200, 200, 255), true)
 		Engine.stop(target)
@@ -271,13 +314,18 @@ local function light()
 	if t < lockUntil or stunned() or blocking or Movement.isBusy() then
 		return
 	end
-	if t - lastLightAt > SWORD.comboReset or comboIndex >= #SWORD.light then
+	local sword = currentSword()
+	if t - lastLightAt > sword.comboReset or comboIndex >= #sword.light then
 		comboIndex = 0
 	end
 	comboIndex += 1
 	lastLightAt = t
-	local move = SWORD.light[comboIndex]
-	lockUntil = t + move.lock
+	local move = sword.light[comboIndex]
+	local lock = move.lock
+	if sword.passive == "frenzy" and t < comboExpires then
+		lock *= 1 - 0.05 * math.min(comboCount, 5)
+	end
+	lockUntil = t + lock
 	Movement.lockFor(move.lock * 0.6)
 	playSwing(myCharacter(), move.anim)
 	request:FireServer("Light")
@@ -288,15 +336,16 @@ local function startCharge()
 		return
 	end
 	charging = true
-	Engine.play(myCharacter(), "HeavyCharge")
+	Engine.play(myCharacter(), currentSword().heavy.charge)
 	request:FireServer("HeavyStart")
 end
 
 function Combat.attackDown()
 	pressing = true
 	pressStart = os.clock()
-	task.delay(SWORD.heavy.minCharge, function()
-		if pressing and os.clock() - pressStart >= SWORD.heavy.minCharge - 0.01 then
+	local minCharge = currentSword().heavy.minCharge
+	task.delay(minCharge, function()
+		if pressing and os.clock() - pressStart >= minCharge - 0.01 then
 			startCharge()
 		end
 	end)
@@ -312,10 +361,14 @@ function Combat.attackUp()
 		if stunned() then
 			return
 		end
-		lockUntil = os.clock() + SWORD.heavy.lock
+		local heavy = currentSword().heavy
+		lockUntil = os.clock() + heavy.lock
 		comboIndex = 0
-		Movement.lockFor(SWORD.heavy.lock * 0.7)
-		playSwing(myCharacter(), SWORD.heavy.anim)
+		Movement.lockFor(heavy.lock * 0.7)
+		playSwing(myCharacter(), heavy.anim)
+		if heavy.lunge then
+			Movement.lunge(heavy.lunge.distance, heavy.lunge.time)
+		end
 		request:FireServer("HeavyRelease")
 	else
 		light()
@@ -330,7 +383,7 @@ function Combat.blockDown()
 		-- Block during a heavy's wind-up is a feint.
 		charging = false
 		pressing = false
-		Engine.stop(myCharacter(), "HeavyCharge")
+		Engine.stop(myCharacter(), currentSword().heavy.charge)
 		request:FireServer("HeavyCancel")
 		return
 	end
@@ -487,6 +540,10 @@ end
 
 function Combat.onLock(fn: (boolean) -> ())
 	table.insert(lockListeners, fn)
+end
+
+function Combat.equip(id: string)
+	request:FireServer("Equip", id)
 end
 
 function Combat.onCombo(fn: (number) -> ())

@@ -7,6 +7,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
 local Movement = require(script.Parent.Movement)
 local Combat = require(script.Parent.Combat)
+local Armory = require(script.Parent.Armory)
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
@@ -239,3 +240,5 @@ if player.Character then
 	task.spawn(onCharacter, player.Character)
 end
 player.CharacterAdded:Connect(onCharacter)
+
+Armory.build(gui, Combat.equip)

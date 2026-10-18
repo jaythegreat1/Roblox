@@ -66,9 +66,13 @@ local function build(home: Vector3): Model
 	model.Parent = workspace
 	Characters.waitForJoints(model)
 	Characters.convertJoints(model)
-	Sword.attach(model)
+	-- A different sword every time it respawns, so you practise against every style.
+	local Swords = require(game:GetService("ReplicatedStorage").Shared.Combat.Swords)
+	local id = Swords.Order[math.random(1, #Swords.Order)]
+	Sword.attach(model, id)
+	model:SetAttribute("BotLabel", `{PROFILE.label} · {Swords.get(id).name}`)
 	CollectionService:AddTag(model, "BladeRiftRig")
-	Overhead.attach(model, PROFILE.label)
+	Overhead.attach(model, model:GetAttribute("BotLabel") :: string)
 	Combat.register(model)
 	pcall(function()
 		(model:FindFirstChild("HumanoidRootPart") :: BasePart):SetNetworkOwner(nil)

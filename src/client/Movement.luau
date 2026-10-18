@@ -179,6 +179,20 @@ function Movement.lockFor(seconds: number)
 	busyUntil = math.max(busyUntil, os.clock() + seconds)
 end
 
+-- Forward lunge used by heavy attacks such as Kage's Flash Draw and the Fleuret's Flèche.
+function Movement.lunge(distance: number, duration: number)
+	local _, _, hrp = parts()
+	if hrp then
+		startDrive(
+			hrp.CFrame.LookVector * Vector3.new(1, 0, 1),
+			distance / duration,
+			distance / duration * 0.5,
+			duration,
+			true
+		)
+	end
+end
+
 function Movement.onCharges(fn: (number) -> ())
 	table.insert(listeners, fn)
 	fn(charges)
