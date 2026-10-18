@@ -285,6 +285,7 @@ local function onFx(kind: string, attacker: Model?, target: Model?, position: Ve
 		end
 	elseif kind == "block" and position then
 		burst(position, Color3.fromRGB(120, 190, 255), 10, 0.5)
+		popText(position, `BLOCKED {math.floor((amount or 0) * 10 + 0.5) / 10}`, Color3.fromRGB(150, 200, 255))
 		Engine.play(target, "BlockImpact")
 		Engine.freeze(attacker, 0.05)
 		if involvesMe(attacker, target) then
@@ -580,6 +581,16 @@ function Combat.canBurst(): boolean
 		and not untilNow("CD_RiftBurst")
 end
 
+local lastNoticeAt = 0
+local function echoNotice(text: string)
+	local me = myCharacter()
+	local hrp = me and me:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if hrp and os.clock() - lastNoticeAt > 0.5 then
+		lastNoticeAt = os.clock()
+		popText(hrp.Position + Vector3.new(0, 2, 0), text, Color3.fromRGB(220, 220, 255))
+	end
+end
+
 function Combat.castEcho(slot: string)
 	local character = myCharacter()
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -595,11 +606,18 @@ function Combat.castEcho(slot: string)
 			return
 		end
 		if typeof(surge) ~= "number" or surge < EchoData.Surge.max then
+			echoNotice(`Surge {math.floor(if typeof(surge) == "number" then surge else 0)}%: fill it to 100%`)
 			return
 		end
 	end
 	local e = EchoData.get(attr(slot))
-	if not e or stunned() or blocking or charging then
+	if not e then
+		echoNotice("No Echo in that slot")
+		return
+	elseif stunned() then
+		echoNotice("Stunned")
+		return
+	elseif blocking or charging then
 		return
 	end
 	local t = os.clock()
@@ -608,6 +626,7 @@ function Combat.castEcho(slot: string)
 		return
 	end
 	if e.rarity ~= "Mythic" and untilNow("CD_" .. e.id) then
+		echoNotice("Cooldown")
 		return
 	end
 	lastWasLight = false

@@ -94,8 +94,24 @@ local function aimDirection(s, arg, range: number): Vector3
 	return if t then flat(t.hrp.Position - s.hrp.Position) else flat(s.hrp.CFrame.LookVector)
 end
 
+-- Players own their character's physics, so the server never moves them directly (that
+-- fights their own movement and rubber-bands); it asks their client to do it instead.
 local function face(s, dir: Vector3)
-	s.hrp.CFrame = CFrame.lookAt(s.hrp.Position, s.hrp.Position + flat(dir))
+	local player = Players:GetPlayerFromCharacter(s.model)
+	if player then
+		moveRemote:FireClient(player, { { face = flat(dir), t = 0 } })
+	else
+		s.hrp.CFrame = CFrame.lookAt(s.hrp.Position, s.hrp.Position + flat(dir))
+	end
+end
+
+local function teleport(s, cf: CFrame)
+	local player = Players:GetPlayerFromCharacter(s.model)
+	if player then
+		moveRemote:FireClient(player, { { cf = cf, t = 0 } })
+	else
+		s.model:PivotTo(cf)
+	end
 end
 
 local function echoFx(s, id: string, data)
@@ -127,17 +143,42 @@ local function drive(s, segments: { { v: Vector3, t: number } }): number
 	return total
 end
 
--- Calls onHit once per enemy that comes within `radius` of the caster during `seconds`.
-local function sweep(s, seconds: number, radius: number, onHit: (any) -> ())
+-- Hits along a planned route (a list of points travelled in `seconds`) instead of the
+-- caster's live position, which the server only sees a moment late for players.
+local function sweepPath(s, points: { Vector3 }, seconds: number, radius: number, onHit: (any) -> ())
+	local lengths, total = {}, 0
+	for i = 1, #points - 1 do
+		lengths[i] = (points[i + 1] - points[i]).Magnitude
+		total += lengths[i]
+	end
+	local function at(distance: number): Vector3
+		for i = 1, #points - 1 do
+			if distance <= lengths[i] or i == #points - 1 then
+				return points[i]:Lerp(
+					points[i + 1],
+					if lengths[i] > 0 then math.clamp(distance / lengths[i], 0, 1) else 1
+				)
+			end
+			distance -= lengths[i]
+		end
+		return points[#points]
+	end
 	local hit = {}
 	task.spawn(function()
-		local stop = os.clock() + seconds
-		while os.clock() < stop and Combat.alive(s) do
+		local start = os.clock()
+		local last = points[1]
+		while Combat.alive(s) do
+			local elapsed = os.clock() - start
+			local current = at(total * math.clamp(elapsed / seconds, 0, 1))
 			for _, t in enemiesOf(s) do
-				if not hit[t] and (t.hrp.Position - s.hrp.Position).Magnitude <= radius then
+				if not hit[t] and distToSegment(t.hrp.Position, last, current) <= radius then
 					hit[t] = true
 					onHit(t)
 				end
+			end
+			last = current
+			if elapsed > seconds + 0.1 then
+				break
 			end
 			RunService.Heartbeat:Wait()
 		end
@@ -228,7 +269,7 @@ Behaviour.EmberDash = {
 		local finish = start + dir * distance
 		drive(s, { { v = dir * (distance / 0.25), t = 0.25 }, { v = Vector3.zero, t = 0.05 } })
 		echoFx(s, "EmberDash", { from = start, to = finish })
-		sweep(s, 0.4, 4.5, function(t)
+		sweepPath(s, { start, finish }, 0.25, 4.5, function(t)
 			Combat.echoHit(s, t, 8, { status = "Burn", posture = 10, knockback = 12 })
 		end)
 		-- The flame trail Burns anyone who steps on it for 3 s.
@@ -380,7 +421,8 @@ Behaviour.PhoenixDescent = {
 			if not Combat.alive(s) then
 				return
 			end
-			local center = s.hrp.Position
+			-- The dive always lands on the marked spot.
+			local center = landing
 			echoFx(s, "PhoenixDescent", { phase = "boom", pos = groundAt(center) })
 			area(s, center, 20, function(target)
 				Combat.echoHit(s, target, 35, {
@@ -416,7 +458,7 @@ Behaviour.FlashStep = {
 			lookAt = dest + dir
 		end
 		s.model:SetAttribute("InvulnerableUntil", now() + 0.2)
-		s.model:PivotTo(CFrame.lookAt(dest, Vector3.new(lookAt.X, dest.Y, lookAt.Z)))
+		teleport(s, CFrame.lookAt(dest, Vector3.new(lookAt.X, dest.Y, lookAt.Z)))
 		echoFx(s, "FlashStep", { from = from, to = dest })
 		for _, e in enemiesOf(s) do
 			if distToSegment(e.hrp.Position, from, dest) < 3.5 then
@@ -513,15 +555,19 @@ Behaviour.RaijuRush = {
 			base,
 		}
 		local segments = {}
+		local points = { s.hrp.Position }
 		for _, d in dirs do
-			table.insert(segments, { v = flat(d) * (15 / 0.16), t = 0.16 })
+			local here = points[#points]
+			local length = clearDistance(here, flat(d), 15)
+			table.insert(points, here + flat(d) * length)
+			table.insert(segments, { v = flat(d) * (length / 0.16), t = 0.16 })
 		end
 		table.insert(segments, { v = Vector3.zero, t = 0.05 })
 		drive(s, segments)
 		echoFx(s, "RaijuRush", { pos = s.hrp.Position })
 		for i = 1, 3 do
 			task.delay(0.16 * (i - 1), function()
-				sweep(s, 0.22, 4.5, function(t)
+				sweepPath(s, { points[i], points[i + 1] }, 0.16, 4.5, function(t)
 					Combat.echoHit(s, t, 5, {
 						posture = 8,
 						lift = if i == 3 then 50 else nil,
@@ -640,7 +686,7 @@ Behaviour.RiftBlink = {
 			else flat(s.hrp.CFrame.LookVector)
 		local from = s.hrp.Position
 		local dest = from + dir * clearDistance(from, dir, 10)
-		s.model:PivotTo(s.hrp.CFrame - from + dest)
+		teleport(s, s.hrp.CFrame - from + dest)
 		echoFx(s, "RiftBlink", { from = from, to = dest })
 	end,
 }
@@ -725,8 +771,8 @@ local function onLoadout(s, arg)
 		return
 	end
 	-- The master plan only allows loadout changes out of combat.
-	if now() - s.lastDamageAt < 5 or now() - s.lastAttackAt < 5 then
-		notify(s, "Can't change Echoes in combat")
+	if now() - s.lastDamageAt < 3 then
+		notify(s, "Can't change Echoes while taking hits")
 		return
 	end
 	local model = s.model
@@ -801,19 +847,30 @@ local function cast(s, arg)
 	local t = now()
 	-- A light's recovery can be cancelled into an Echo; a heavy's cannot.
 	local afterLight = s.lastLightAt == s.lastAttackAt and t - s.lastLightAt < 1
-	if Combat.stunned(s) or s.blocking or s.chargingSince or (t < s.busyUntil and not afterLight) then
+	-- Every refusal says why, so a button press never just does nothing.
+	if Combat.stunned(s) then
+		notify(s, "Stunned")
+		return
+	elseif s.blocking or s.chargingSince then
+		notify(s, "Busy")
+		return
+	elseif t < s.busyUntil - 0.15 and not afterLight then
+		notify(s, "Busy")
 		return
 	end
 	if Combat.hasStatus(s, "Silence") then
+		notify(s, "Silenced")
 		return
 	end
 	local mythic = e.rarity == "Mythic"
 	if mythic then
 		local surge = s.model:GetAttribute("Surge") or 0
 		if surge < Data.Surge.max then
+			notify(s, `Surge {math.floor(surge)}%: fill it to 100%`)
 			return
 		end
 	elseif not ready(s, e.id) then
+		notify(s, "Cooldown")
 		return
 	end
 	if behaviour.check then

@@ -246,7 +246,8 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	local from = move.from or attacker.hrp.Position
 	local blockingNow = not move.unblockable and target.blocking and facing(target.hrp, from, C.blockArc)
 	local canParry = not move.unblockable and not move.unparryable
-	local dummyParry = canParry and target.dummyMode == "Parry" and math.random() < 0.5
+	-- The parry dummy practises sword timing only; Echoes go through it.
+	local dummyParry = canParry and not move.echo and target.dummyMode == "Parry" and math.random() < 0.5
 	local parryWindow = swordOf(target).parryWindow or C.parryWindow
 	if canParry and (dummyParry or (blockingNow and t - target.blockStart <= parryWindow)) then
 		target.parriedDuringBlock = true

@@ -200,7 +200,33 @@ function Movement.lunge(distance: number, duration: number)
 	end
 end
 
-function Movement.path(segments: { { v: Vector3, t: number } })
+function Movement.path(segments)
+	-- Instant steps (teleports and turns) happen right away; the rest are velocity segments.
+	local _, _, hrp = parts()
+	local timed = {}
+	for _, seg in segments do
+		if seg.cf then
+			if hrp then
+				hrp.AssemblyLinearVelocity = Vector3.zero
+				player.Character:PivotTo(seg.cf)
+			end
+		elseif seg.face then
+			if hrp then
+				hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + seg.face)
+			end
+		else
+			table.insert(timed, seg)
+		end
+	end
+	if #timed == 0 then
+		return
+	end
+	segments = timed
+	-- A grounded humanoid holds itself to the floor, so lifting moves start with a jump.
+	local _, humanoid = parts()
+	if humanoid and timed[1].v.Y > 1 then
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
 	path = table.clone(segments)
 	pathSegmentEnds = 0
 	drive = nil

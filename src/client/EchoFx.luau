@@ -150,13 +150,13 @@ local function afterimage(model: Model?, color: Color3, seconds: number)
 end
 
 local function near(pos: Vector3, radius: number): boolean
-	local character = player.Character
+	local character = player and player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	return hrp ~= nil and (hrp.Position - pos).Magnitude <= radius
 end
 
 local function screenFlash(color: Color3, seconds: number)
-	local gui = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("BladeRiftHUD")
+	local gui = player and player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("BladeRiftHUD")
 	if not gui then
 		return
 	end
