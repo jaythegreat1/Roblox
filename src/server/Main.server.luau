@@ -1,6 +1,8 @@
 --!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local Config = require(ReplicatedStorage.Shared.Config)
+local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
 
 local remotes = Instance.new("Folder")
 remotes.Name = Config.RemoteFolderName
@@ -10,14 +12,17 @@ clientError.Parent = remotes
 local action = Instance.new("RemoteEvent")
 action.Name = "Action"
 action.Parent = remotes
+
+local Combat = require(script.Parent.Combat)
+Combat.start(remotes)
 remotes.Parent = ReplicatedStorage
 
 local ErrorLog = require(script.Parent.ErrorLog)
 ErrorLog.start(clientError)
 
+local DODGES = { RollForward = true, RollBack = true, CartwheelLeft = true, CartwheelRight = true }
+
 -- Relay movement animations so every client can play them on the mover's character.
-local Engine = require(ReplicatedStorage.Shared.Anim.Engine)
-local Players = game:GetService("Players")
 local lastAction: { [Player]: { number } } = {}
 action.OnServerEvent:Connect(function(player, name)
 	if typeof(name) ~= "string" or not Engine.exists(name) then
@@ -33,6 +38,11 @@ action.OnServerEvent:Connect(function(player, name)
 	end
 	table.insert(stamps, now)
 	lastAction[player] = stamps
+	local character = player.Character
+	if character and DODGES[name] then
+		-- Rolls are invulnerable for their first 0.25 s; the server is the one that checks it.
+		character:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + Config.Movement.RollIFrames)
+	end
 	for _, other in Players:GetPlayers() do
 		if other ~= player then
 			action:FireClient(other, player, name)
@@ -44,6 +54,13 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 local spawnPad = require(script.Parent.Arena).build()
-require(script.Parent.Characters).start(spawnPad)
+local Sword = require(script.Parent.Sword)
+local Overhead = require(script.Parent.Overhead)
+require(script.Parent.Characters).start(spawnPad, function(model, player)
+	Sword.attach(model)
+	Overhead.attach(model, player.DisplayName, player)
+	Combat.register(model)
+end)
+require(script.Parent.Dummies).spawn(spawnPad.Position)
 
 print(`Blade Rift server started, version {Config.Version}`)

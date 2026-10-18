@@ -7,7 +7,7 @@ local Characters = {}
 
 -- New Roblox avatars are built with AnimationConstraint joints. Our engine animates by writing
 -- Motor6D.Transform, so swap each AnimationConstraint for an equivalent Motor6D.
-local function convertJoints(model: Model): number
+function Characters.convertJoints(model: Model): number
 	local converted = 0
 	for _, c in model:GetDescendants() do
 		if c:IsA("AnimationConstraint") and c.Attachment0 and c.Attachment1 then
@@ -32,7 +32,7 @@ local function convertJoints(model: Model): number
 	return converted
 end
 
-local function waitForJoints(model: Model)
+function Characters.waitForJoints(model: Model)
 	for _ = 1, 60 do
 		for _, c in model:GetDescendants() do
 			if (c:IsA("AnimationConstraint") or c:IsA("Motor6D")) and c.Name == "Root" then
@@ -65,7 +65,7 @@ local function normalizedDescription(player: Player): HumanoidDescription
 	return d
 end
 
-function Characters.start(spawnPad: BasePart)
+function Characters.start(spawnPad: BasePart, onSpawn: ((Model, Player) -> ())?)
 	local function spawnPlayer(player: Player)
 		local model =
 			Players:CreateHumanoidModelFromDescription(normalizedDescription(player), Enum.HumanoidRigType.R15)
@@ -82,8 +82,11 @@ function Characters.start(spawnPad: BasePart)
 		local offset = Vector3.new(math.random(-5, 5), 4, math.random(-5, 5))
 		model:PivotTo(CFrame.new(spawnPad.Position + offset))
 		model.Parent = workspace
-		waitForJoints(model)
-		convertJoints(model)
+		Characters.waitForJoints(model)
+		Characters.convertJoints(model)
+		if onSpawn then
+			onSpawn(model, player)
+		end
 		player.Character = model
 		humanoid.Died:Connect(function()
 			task.wait(4)

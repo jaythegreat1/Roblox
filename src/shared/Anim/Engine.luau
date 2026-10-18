@@ -1,5 +1,6 @@
 -- Custom animation engine. Every client animates every character locally by writing
 -- Motor6D.Transform each frame: a procedural locomotion layer plus keyframed actions on top.
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
@@ -37,6 +38,8 @@ type Rig = {
 	action: any?,
 	actionTime: number,
 	actionSpeed: number,
+	holding: boolean,
+	freezeUntil: number,
 	rayParams: RaycastParams,
 }
 
@@ -131,6 +134,8 @@ local function getRig(character: Model): Rig?
 		action = nil,
 		actionTime = 0,
 		actionSpeed = 1,
+		holding = false,
+		freezeUntil = 0,
 		rayParams = params,
 	}
 	rigs[character] = rig
@@ -197,18 +202,48 @@ local function locomotionPose(rig: Rig, dt: number, now: number)
 	return p
 end
 
+-- Characters holding a sword carry it forward in the right hand.
+local function applyArmed(target)
+	local sh = target.RightShoulder or {}
+	local el = target.RightElbow or {}
+	target.RightShoulder = { x = (sh.x or 0) + 25, y = sh.y, z = (sh.z or 0) - 5 }
+	target.RightElbow = { x = (el.x or 0) + 35 }
+end
+
+local function animatedCharacters(): { Model }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(list, player.Character)
+		end
+	end
+	for _, model in CollectionService:GetTagged("BladeRiftRig") do
+		if model:IsA("Model") and model:IsDescendantOf(workspace) then
+			table.insert(list, model)
+		end
+	end
+	return list
+end
+
 local function step(dt: number)
 	local now = os.clock()
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		local rig = character and getRig(character)
+	for _, character in animatedCharacters() do
+		local rig = getRig(character)
 		if rig then
 			local target = locomotionPose(rig, dt, now)
+			if character:GetAttribute("Armed") then
+				applyArmed(target)
+			end
 			local smooth = 1 - math.exp(-18 * dt)
 			local actionPose, weight = nil, 0
 			if rig.action then
-				rig.actionTime += dt * rig.actionSpeed
+				if now >= rig.freezeUntil then
+					rig.actionTime += dt * rig.actionSpeed
+				end
 				local d = rig.action.duration
+				if rig.holding and rig.actionTime > d then
+					rig.actionTime = d
+				end
 				if rig.actionTime >= d + FADE_OUT then
 					rig.action = nil
 				else
@@ -244,6 +279,28 @@ function Engine.play(character: Model?, name: string, speed: number?)
 	rig.action = anim
 	rig.actionTime = 0
 	rig.actionSpeed = speed or 1
+	rig.holding = anim.hold == true
+end
+
+-- Ends a held animation (or cuts any action short) with a smooth fade.
+function Engine.stop(character: Model?, name: string?)
+	local rig = character and rigs[character]
+	if not rig or not rig.action then
+		return
+	end
+	if name and Library[name] ~= rig.action then
+		return
+	end
+	rig.holding = false
+	rig.actionTime = math.max(rig.actionTime, rig.action.duration)
+end
+
+-- Impact freeze: pauses the current action for a few frames so hits feel heavy.
+function Engine.freeze(character: Model?, seconds: number)
+	local rig = character and rigs[character]
+	if rig then
+		rig.freezeUntil = os.clock() + seconds
+	end
 end
 
 function Engine.exists(name: string): boolean

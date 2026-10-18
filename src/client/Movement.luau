@@ -21,6 +21,7 @@ local busyUntil = 0
 local sprinting = false
 local airJumpUsed, airDashUsed = false, false
 local lastJumpAt = 0
+local lastJumpRequest = 0
 local minFallSpeed = 0
 local drive: { dir: Vector3, from: number, to: number, startTime: number, duration: number, keepY: boolean }? = nil
 local listeners: { (number) -> () } = {}
@@ -81,7 +82,13 @@ end
 
 function Movement.dodge()
 	local character, humanoid, hrp = parts()
-	if not character or os.clock() < busyUntil or not grounded(humanoid) or not spendCharge() then
+	if
+		not character
+		or os.clock() < busyUntil
+		or Movement.isStunned()
+		or not grounded(humanoid)
+		or not spendCharge()
+	then
 		return
 	end
 	local dir = inputDirection(hrp, humanoid)
@@ -107,7 +114,7 @@ end
 
 function Movement.dash()
 	local character, humanoid, hrp = parts()
-	if not character or os.clock() < busyUntil then
+	if not character or os.clock() < busyUntil or Movement.isStunned() then
 		return
 	end
 	local dir = inputDirection(hrp, humanoid)
@@ -158,19 +165,44 @@ function Movement.toggleSprint()
 	Movement.setSprint(not sprinting)
 end
 
+function Movement.isStunned(): boolean
+	local character = player.Character
+	local untilTime = character and character:GetAttribute("StunnedUntil")
+	return typeof(untilTime) == "number" and workspace:GetServerTimeNow() < untilTime
+end
+
+function Movement.isBusy(): boolean
+	return os.clock() < busyUntil
+end
+
+function Movement.lockFor(seconds: number)
+	busyUntil = math.max(busyUntil, os.clock() + seconds)
+end
+
 function Movement.onCharges(fn: (number) -> ())
 	table.insert(listeners, fn)
 	fn(charges)
 end
 
+local function airborne(humanoid: Humanoid): boolean
+	local state = humanoid:GetState()
+	return state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping
+end
+
 local function onJumpRequest()
+	-- JumpRequest repeats every frame while the button is held, so only a fresh tap counts;
+	-- otherwise holding the first jump would spend the air jump immediately.
+	local now = os.clock()
+	local fresh = now - lastJumpRequest > 0.12
+	lastJumpRequest = now
 	local character, humanoid, hrp = parts()
 	if
-		not character
-		or grounded(humanoid)
+		not fresh
+		or not character
+		or not airborne(humanoid)
 		or airJumpUsed
-		or os.clock() - lastJumpAt < 0.2
-		or os.clock() < busyUntil
+		or now - lastJumpAt < 0.15
+		or Movement.isStunned()
 	then
 		return
 	end
