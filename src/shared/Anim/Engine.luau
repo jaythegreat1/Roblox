@@ -31,7 +31,7 @@ local rad = math.rad
 type Rig = {
 	character: Model,
 	hrp: BasePart,
-	motors: { [string]: Motor6D },
+	motors: { [string]: any },
 	loco: { [string]: CFrame },
 	phase: number,
 	action: any?,
@@ -101,13 +101,24 @@ local function getRig(character: Model): Rig?
 	end
 	local motors = {}
 	for _, d in character:GetDescendants() do
-		if d:IsA("Motor6D") and table.find(JOINTS, d.Name) then
+		if (d:IsA("Motor6D") or d:IsA("AnimationConstraint")) and table.find(JOINTS, d.Name) then
+			if d:IsA("AnimationConstraint") then
+				pcall(function()
+					(d :: any).IsKinematic = true
+				end)
+			end
 			motors[d.Name] = d
 		end
 	end
 	if not motors.Root then
 		return nil
 	end
+	-- Joints are rebuilt if the server converts them after we first saw the model.
+	character.DescendantAdded:Connect(function(d)
+		if d:IsA("Motor6D") and table.find(JOINTS, d.Name) then
+			rigs[character] = nil
+		end
+	end)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { character }
