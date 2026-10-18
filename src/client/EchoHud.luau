@@ -90,6 +90,25 @@ local function pcSlots(gui: ScreenGui): { [string]: TextButton }
 	return slots
 end
 
+-- Buffs shown next to your statuses: attribute, label, colour.
+local BUFFS = {
+	{ "BattleCryUntil", "BATTLE CRY", "#ff6ad5" },
+	{ "ShieldUntil", "SHIELD", "#ff8af0" },
+	{ "GraniteUntil", "GRANITE", "#c8b49a" },
+	{ "FrozenPathUntil", "FROZEN PATH", "#a8dcff" },
+	{ "TempestUntil", "TEMPEST", "#c8ffdc" },
+	{ "UmbralUntil", "UMBRAL FANGS", "#b48cff" },
+	{ "InvisibleUntil", "INVISIBLE", "#9a7acc" },
+	{ "AfterimageUntil", "AFTERIMAGE READY", "#ff8af0" },
+}
+
+-- Whether the fighter wearing this name bar is invisible (Shade Clone).
+local function hidden(overhead: Instance): boolean
+	local model = overhead:FindFirstAncestorOfClass("Model")
+	local untilTime = model and model:GetAttribute("InvisibleUntil")
+	return typeof(untilTime) == "number" and workspace:GetServerTimeNow() < untilTime
+end
+
 function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Combat)
 	local slots = buttons or pcSlots(gui)
 	if not buttons then
@@ -182,16 +201,27 @@ function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Comba
 		local parts = {}
 		for name, info in Data.Statuses do
 			local untilTime = attr("Status_" .. name)
-			if typeof(untilTime) == "number" and untilTime > t then
+			if name == "Chill" then
+				local stacks = attr("ChillStacks")
+				if typeof(stacks) == "number" and stacks > 0 then
+					table.insert(parts, `<font color="{hex(info.color)}">CHILL x{stacks}</font>`)
+				end
+			elseif typeof(untilTime) == "number" and untilTime > t then
 				table.insert(
 					parts,
 					`<font color="{hex(info.color)}">{string.upper(name)} {string.format("%.1f", untilTime - t)}s</font>`
 				)
 			end
 		end
-		local cry = attr("BattleCryUntil")
-		if typeof(cry) == "number" and cry > t then
-			table.insert(parts, `<font color="#ff6ad5">BATTLE CRY {string.format("%.1f", cry - t)}s</font>`)
+		for _, buff in BUFFS do
+			local untilTime = attr(buff[1])
+			if typeof(untilTime) == "number" and untilTime > t then
+				local extra = if buff[1] == "ShieldUntil" then ` {math.ceil(attr("Shield") or 0)}` else ""
+				table.insert(
+					parts,
+					`<font color="{buff[3]}">{buff[2]}{extra} {string.format("%.1f", untilTime - t)}s</font>`
+				)
+			end
 		end
 		statusLine.Text = table.concat(parts, "   ")
 
@@ -205,13 +235,13 @@ function EchoHud.build(gui: ScreenGui, buttons: { [string]: TextButton }?, Comba
 		for _, p in Players:GetPlayers() do
 			local overhead = p ~= player and p.Character and p.Character:FindFirstChild("Overhead", true)
 			if overhead and overhead:IsA("BillboardGui") then
-				overhead.Enabled = not blinded
+				overhead.Enabled = not blinded and not hidden(overhead)
 			end
 		end
 		for _, m in game:GetService("CollectionService"):GetTagged("BladeRiftRig") do
 			local overhead = m:FindFirstChild("Overhead", true)
 			if overhead and overhead:IsA("BillboardGui") then
-				overhead.Enabled = not blinded
+				overhead.Enabled = not blinded and not hidden(overhead)
 			end
 		end
 	end)

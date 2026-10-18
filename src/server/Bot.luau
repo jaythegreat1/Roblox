@@ -31,7 +31,9 @@ local function nearestPlayer(from: Vector3): (Model?, number)
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local hrp = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if humanoid and hrp and humanoid.Health > 0 then
+		local hidden = character and character:GetAttribute("InvisibleUntil")
+		local invisible = typeof(hidden) == "number" and workspace:GetServerTimeNow() < hidden
+		if humanoid and hrp and humanoid.Health > 0 and not invisible then
 			local d = (hrp.Position - from).Magnitude
 			if d < bestDist then
 				best, bestDist = character, d

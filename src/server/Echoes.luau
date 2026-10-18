@@ -12,6 +12,7 @@ local Echoes = {}
 
 local moveRemote: RemoteEvent
 local effects: Folder
+local walls: Folder
 local projectileKey = 0
 local pillars: { [Model]: BasePart } = {}
 
@@ -186,7 +187,10 @@ local function sweepPath(s, points: { Vector3 }, seconds: number, radius: number
 end
 
 -- A travelling hit simulated on the server; clients draw the same path from the same data.
-local function projectile(
+-- onHit(owner, target, pos) returns true to stop; onEnd(owner, pos) runs where it stops.
+-- Ice walls stop it, and Mirror Guard sends it back at its owner, faster.
+local projectile
+function projectile(
 	s,
 	id: string,
 	origin: Vector3,
@@ -201,21 +205,40 @@ local function projectile(
 	local key = projectileKey
 	local travel = clearDistance(origin, dir, range)
 	echoFx(s, id, { phase = "fly", key = key, origin = origin, dir = dir, speed = speed, range = travel })
+	local wallParams = RaycastParams.new()
+	wallParams.FilterType = Enum.RaycastFilterType.Include
+	wallParams.FilterDescendantsInstances = { walls }
 	task.spawn(function()
 		local start = os.clock()
 		local hit = {}
 		local pos = origin
+		local function finish()
+			echoFx(s, id, { phase = "end", key = key, pos = pos })
+			if onEnd then
+				onEnd(s, pos)
+			end
+		end
 		while true do
 			local d = math.min((os.clock() - start) * speed, travel)
-			pos = origin + dir * d
+			local nextPos = origin + dir * d
+			if (nextPos - pos).Magnitude > 0 and workspace:Raycast(pos, nextPos - pos, wallParams) then
+				finish()
+				return
+			end
+			pos = nextPos
 			for _, t in enemiesOf(s) do
 				if not hit[t] and (t.hrp.Position - pos).Magnitude <= radius then
 					hit[t] = true
-					if onHit(t, pos) then
+					if
+						t.model:GetAttribute("CounterKind") == "MirrorGuard" and Combat.active(t.model, "CounterUntil")
+					then
 						echoFx(s, id, { phase = "end", key = key, pos = pos })
-						if onEnd then
-							onEnd(pos)
-						end
+						Combat.fx("parry", s.model, t.model, pos)
+						projectile(t, id, pos, flat(s.hrp.Position - pos), speed * 1.5, range, radius, onHit, onEnd)
+						return
+					end
+					if onHit(s, t, pos) then
+						finish()
 						return
 					end
 				end
@@ -225,10 +248,7 @@ local function projectile(
 			end
 			RunService.Heartbeat:Wait()
 		end
-		echoFx(s, id, { phase = "end", key = key, pos = pos })
-		if onEnd then
-			onEnd(pos)
-		end
+		finish()
 	end)
 end
 
@@ -291,8 +311,13 @@ Behaviour.FlameFang = {
 	run = function(s, arg)
 		local dir = aimDirection(s, arg, 40)
 		face(s, dir)
-		projectile(s, "FlameFang", s.hrp.Position + Vector3.new(0, 0.6, 0), dir, 85, 40, 3.5, function(t, pos)
-			Combat.echoHit(s, t, 7, { status = "Burn", posture = 10, knockback = 18, ranged = true, from = pos })
+		projectile(s, "FlameFang", s.hrp.Position + Vector3.new(0, 0.6, 0), dir, 85, 40, 3.5, function(owner, t, pos)
+			Combat.echoHit(
+				owner,
+				t,
+				7,
+				{ status = "Burn", posture = 10, knockback = 18, ranged = true, projectile = true, from = pos }
+			)
 			return true
 		end)
 	end,
@@ -351,11 +376,16 @@ Behaviour.SolarFlare = {
 		local dir = aimDirection(s, arg, 40)
 		face(s, dir)
 		drive(s, { { v = Vector3.new(0, 30, 0) + dir * -6, t = 0.2 } })
-		local function boom(pos: Vector3)
-			echoFx(s, "SolarFlare", { phase = "boom", pos = pos })
-			area(s, pos, 10, function(t)
-				Combat.echoHit(s, t, 15, { posture = 20, knockback = 35, ranged = true, from = pos })
-				Combat.applyStatus(t, "Blind", 1.5, s)
+		local function boom(owner, pos: Vector3)
+			echoFx(owner, "SolarFlare", { phase = "boom", pos = pos })
+			area(owner, pos, 10, function(t)
+				Combat.echoHit(
+					owner,
+					t,
+					15,
+					{ posture = 20, knockback = 35, ranged = true, projectile = true, from = pos }
+				)
+				Combat.applyStatus(t, "Blind", 1.5, owner)
 			end)
 		end
 		projectile(s, "SolarFlare", s.hrp.Position + Vector3.new(0, 2, 0), dir, 60, 40, 3.5, function()
@@ -609,6 +639,7 @@ Behaviour.StormPillar = {
 		cloud.CFrame = CFrame.new(base + Vector3.new(0, 13, 0))
 		cloud.Parent = rod
 		pillars[s.model] = rod
+		addConstruct(s, rod, "StormPillar", base)
 		echoFx(s, "StormPillar", { phase = "rise", pos = base })
 		local top = base + Vector3.new(0, 9, 0)
 		local dealt = {}
@@ -919,6 +950,9 @@ function Echoes.start(remotes: Folder)
 	moveRemote = Instance.new("RemoteEvent")
 	moveRemote.Name = "EchoMove"
 	moveRemote.Parent = remotes
+	walls = Instance.new("Folder")
+	walls.Name = "EchoWalls"
+	walls.Parent = workspace
 	effects = Instance.new("Folder")
 	effects.Name = "EchoEffects"
 	effects.Parent = workspace
@@ -927,5 +961,81 @@ function Echoes.start(remotes: Folder)
 end
 
 Echoes.Behaviour = Behaviour
+
+-- Constructs (walls, pillars, decoys): one of each kind per player, and Tectonic Rift
+-- breaks the enemy ones on its line.
+local constructs: { { owner: Model, instance: Instance, kind: string, at: Vector3 } } = {}
+
+local function addConstruct(s, instance: Instance, kind: string, at: Vector3)
+	for i = #constructs, 1, -1 do
+		local c = constructs[i]
+		if not c.instance.Parent then
+			table.remove(constructs, i)
+		elseif c.owner == s.model and c.kind == kind then
+			c.instance:Destroy()
+			table.remove(constructs, i)
+		end
+	end
+	table.insert(constructs, { owner = s.model, instance = instance, kind = kind, at = at })
+end
+
+local function breakConstructs(s, a: Vector3, b: Vector3, radius: number)
+	for i = #constructs, 1, -1 do
+		local c = constructs[i]
+		if c.owner ~= s.model and c.instance.Parent and distToSegment(c.at, a, b) <= radius then
+			echoFx(s, "TectonicRift", { phase = "break", pos = c.at })
+			c.instance:Destroy()
+			table.remove(constructs, i)
+		end
+	end
+end
+
+local dodgeListeners: { (any) -> () } = {}
+
+-- Called by the movement relay when a player starts a dodge roll.
+function Echoes.onDodge(character: Model)
+	local s = Combat.state(character)
+	if s then
+		for _, fn in dodgeListeners do
+			task.spawn(fn, s)
+		end
+	end
+end
+
+-- Everything the other Echo modules need.
+Echoes.kit = {
+	Behaviour = Behaviour,
+	now = now,
+	flat = flat,
+	aim = aim,
+	aimDirection = aimDirection,
+	face = face,
+	teleport = teleport,
+	drive = drive,
+	sweepPath = sweepPath,
+	projectile = function(...)
+		return projectile(...)
+	end,
+	area = area,
+	groundAt = groundAt,
+	clearDistance = clearDistance,
+	distToSegment = distToSegment,
+	enemiesOf = enemiesOf,
+	echoFx = echoFx,
+	notify = notify,
+	rayParams = rayParams,
+	addConstruct = addConstruct,
+	breakConstructs = breakConstructs,
+	effects = function()
+		return effects
+	end,
+	walls = function()
+		return walls
+	end,
+	onDodge = function(fn)
+		table.insert(dodgeListeners, fn)
+	end,
+}
+require(script.Parent.EchoesExtra)(Echoes.kit)
 
 return Echoes

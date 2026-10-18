@@ -2223,4 +2223,515 @@ Library.RiftBurst = {
 	},
 }
 
+--------------------------------------------------------------------------------
+-- Ice, Wind, Shadow, Earth and Rift Echoes.
+local function keys(duration, list)
+	return { duration = duration, keys = list }
+end
+
+-- Ice
+Library.EchoFrostLance = keys(0.5, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.12,
+		ease = "out",
+		pose = {
+			Root = { y = -180, py = -0.3 },
+			RightShoulder = { x = 170, z = 20 },
+			RightElbow = { x = 80 },
+			LeftShoulder = { x = 60, z = -30 },
+		},
+	},
+	{
+		t = 0.24,
+		ease = "in",
+		pose = {
+			Root = { y = -360, x = -12 },
+			Waist = { y = -30 },
+			RightShoulder = { x = 95 },
+			RightElbow = { x = 0 },
+			LeftShoulder = { x = -20, z = -40 },
+			LeftHip = { x = 30 },
+		},
+	},
+	{ t = 0.5, ease = "inout", pose = { Root = { y = -360 } } },
+})
+Library.EchoGlacialGuard = held(1.05, 0.9, {
+	Root = { py = -0.6 },
+	RightShoulder = { x = 100, z = -60 },
+	RightElbow = { x = 70 },
+	LeftShoulder = { x = 90, z = -40 },
+	LeftElbow = { x = 80 },
+	LeftHip = { x = 35 },
+	LeftKnee = { x = -40 },
+	RightKnee = { x = -30 },
+}, 0.06)
+Library.EchoGlacierWall = slash(0.6, 0.15, 0.27, {
+	Root = { x = 8, py = 0.2 },
+	RightShoulder = { x = 190 },
+	RightElbow = { x = 10 },
+	LeftShoulder = { x = 170 },
+}, {
+	Root = { x = -30, py = -1.3 },
+	Waist = { x = -30 },
+	RightShoulder = { x = 50 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 50 },
+	LeftHip = { x = 70 },
+	LeftKnee = { x = -80 },
+	RightKnee = { x = -60 },
+})
+Library.EchoFrozenPath = held(0.5, 0.4, {
+	Root = { x = -20, py = -0.6 },
+	LeftHip = { x = 60 },
+	LeftKnee = { x = -50 },
+	RightHip = { x = -30 },
+	RightShoulder = { x = -40, z = 40 },
+	LeftShoulder = { x = 40, z = -60 },
+}, 0.12)
+Library.EchoAvalancheCrash = keys(0.85, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.15,
+		ease = "out",
+		pose = {
+			Root = { x = 15 },
+			RightShoulder = { x = 185 },
+			LeftShoulder = { x = 175 },
+			LeftHip = { x = 90 },
+			LeftKnee = { x = -110 },
+			RightHip = { x = 70 },
+			RightKnee = { x = -100 },
+		},
+	},
+	{
+		t = 0.38,
+		pose = {
+			Root = { x = -10 },
+			RightShoulder = { x = 190 },
+			LeftShoulder = { x = 180 },
+			LeftHip = { x = 60 },
+			LeftKnee = { x = -80 },
+		},
+	},
+	{
+		t = 0.47,
+		ease = "in",
+		pose = {
+			Root = { x = -35, py = -1.4 },
+			Waist = { x = -25 },
+			RightShoulder = { x = 55 },
+			LeftShoulder = { x = 55 },
+			LeftHip = { x = 80 },
+			LeftKnee = { x = -90 },
+			RightHip = { x = 10 },
+			RightKnee = { x = -100 },
+		},
+	},
+	{
+		t = 0.7,
+		pose = {
+			Root = { x = -33, py = -1.4 },
+			RightShoulder = { x = 55 },
+			LeftShoulder = { x = 55 },
+			LeftHip = { x = 80 },
+			LeftKnee = { x = -90 },
+			RightKnee = { x = -100 },
+		},
+	},
+	{ t = 0.85, ease = "inout", pose = guard },
+})
+Library.EchoWintersCoffin = held(0.65, 0.5, {
+	Root = { x = -10 },
+	Waist = { x = -10 },
+	RightShoulder = { x = 90 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 90 },
+	LeftElbow = { x = 0 },
+	LeftHip = { x = 40 },
+	RightHip = { x = -20 },
+}, 0.3)
+Library.EchoAbsoluteZero = keys(1.2, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.2,
+		ease = "out",
+		pose = {
+			Root = { py = 0.3, x = 8 },
+			RightShoulder = { x = 185 },
+			LeftShoulder = { x = 175 },
+			Neck = { x = -20 },
+		},
+	},
+	{
+		t = 0.4,
+		ease = "in",
+		pose = {
+			Root = { x = -30, py = -1.5 },
+			Waist = { x = -30 },
+			RightShoulder = { x = 60 },
+			LeftShoulder = { x = 60 },
+			LeftHip = { x = 75 },
+			LeftKnee = { x = -85 },
+			RightKnee = { x = -75 },
+		},
+	},
+	{
+		t = 1.0,
+		pose = {
+			Root = { x = -28, py = -1.4 },
+			RightShoulder = { x = 62 },
+			LeftShoulder = { x = 62 },
+			LeftHip = { x = 75 },
+			LeftKnee = { x = -85 },
+			RightKnee = { x = -75 },
+		},
+	},
+	{ t = 1.2, ease = "inout", pose = guard },
+})
+
+-- Wind
+Library.EchoGaleRoll = Library.RollForward
+Library.EchoWindScythe = keys(0.45, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.08,
+		ease = "out",
+		pose = { RightShoulder = { x = 160, z = -40 }, LeftShoulder = { x = 160, z = 40 }, Root = { py = 0.1 } },
+	},
+	{
+		t = 0.18,
+		ease = "in",
+		pose = {
+			Root = { py = -0.5 },
+			RightShoulder = { x = 60, z = 75 },
+			LeftShoulder = { x = 60, z = -75 },
+			LeftHip = { x = 30 },
+		},
+	},
+	{ t = 0.45, ease = "inout", pose = guard },
+})
+Library.EchoUpdraft = keys(0.5, {
+	{
+		t = 0,
+		pose = {
+			Root = { py = -1 },
+			LeftKnee = { x = -60 },
+			RightKnee = { x = -60 },
+			LeftHip = { x = 40 },
+			RightHip = { x = 40 },
+		},
+	},
+	{
+		t = 0.35,
+		ease = "out",
+		pose = {
+			Root = { y = -360, py = 1.4 },
+			RightShoulder = { x = 175 },
+			LeftShoulder = { x = 160, z = -20 },
+			LeftKnee = { x = -30 },
+		},
+	},
+	{ t = 0.5, ease = "inout", pose = { Root = { y = -360 } } },
+})
+Library.EchoTempestStep = held(0.5, 0.35, {
+	Root = { py = 0.3 },
+	LeftKnee = { x = -60 },
+	LeftHip = { x = 50 },
+	LeftShoulder = { x = 20, z = -70 },
+	RightShoulder = { x = 20, z = 70 },
+}, 0.1)
+Library.EchoCycloneCutter = keys(0.55, {
+	{ t = 0, pose = { Root = { py = -0.6 }, Waist = { y = 60 }, RightShoulder = { x = 90, z = 110 } } },
+	{
+		t = 0.45,
+		ease = "linear",
+		pose = {
+			Root = { y = -720, py = -0.4 },
+			RightShoulder = { x = 88, z = 100 },
+			RightElbow = { x = 0 },
+			LeftShoulder = { x = 70, z = -90 },
+		},
+	},
+	{ t = 0.55, ease = "out", pose = { Root = { y = -720 } } },
+})
+Library.EchoVacuumBlade = slash(0.8, 0.3, 0.42, {
+	Root = { py = -0.6 },
+	Waist = { y = 50 },
+	RightShoulder = { x = 90, z = 100 },
+	RightElbow = { x = 10 },
+	LeftShoulder = { x = 40, z = -20 },
+}, {
+	Root = { py = -0.7 },
+	Waist = { y = -40 },
+	RightShoulder = { x = 90, z = -30 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = -10, z = -60 },
+	RightHip = { x = 25 },
+})
+Library.EchoHeavenSplitter = keys(1.0, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.4,
+		ease = "out",
+		pose = {
+			Root = { x = 10, py = 0.3 },
+			RightShoulder = { x = 185 },
+			LeftShoulder = { x = 175 },
+			Neck = { x = -20 },
+		},
+	},
+	{
+		t = 0.6,
+		ease = "in",
+		pose = {
+			Root = { x = -30, py = -1 },
+			Waist = { x = -25 },
+			RightShoulder = { x = 50 },
+			LeftShoulder = { x = 50 },
+			LeftHip = { x = 65 },
+			LeftKnee = { x = -60 },
+			RightHip = { x = -40 },
+		},
+	},
+	{
+		t = 0.85,
+		pose = {
+			Root = { x = -28, py = -1 },
+			RightShoulder = { x = 50 },
+			LeftShoulder = { x = 50 },
+			LeftHip = { x = 65 },
+			LeftKnee = { x = -60 },
+		},
+	},
+	{ t = 1.0, ease = "inout", pose = guard },
+})
+
+-- Shadow
+Library.EchoShadeStep = held(0.5, 0.3, {
+	Root = { py = -2.2, x = -20 },
+	LeftHip = { x = 100 },
+	LeftKnee = { x = -120 },
+	RightHip = { x = 100 },
+	RightKnee = { x = -120 },
+	LeftShoulder = { x = 30 },
+	RightShoulder = { x = 30 },
+}, 0.15)
+Library.EchoUmbralFangs = held(0.5, 0.35, {
+	Root = { py = -0.3 },
+	Waist = { y = 20 },
+	RightShoulder = { x = 60, z = -30 },
+	RightElbow = { x = 90 },
+	LeftShoulder = { x = 40, z = -60 },
+	LeftElbow = { x = 60 },
+}, 0.12)
+Library.EchoShadeClone = held(0.45, 0.3, {
+	Root = { z = 20, py = -0.3 },
+	Waist = { z = 10 },
+	LeftShoulder = { z = -60 },
+	RightShoulder = { z = 60 },
+}, 0.12)
+Library.EchoVoidGrasp = held(0.6, 0.45, {
+	Root = { x = -25, py = -1.3 },
+	Waist = { x = -25 },
+	LeftShoulder = { x = 60 },
+	LeftElbow = { x = 0 },
+	RightShoulder = { x = -20, z = 40 },
+	LeftHip = { x = 70 },
+	LeftKnee = { x = -80 },
+	RightKnee = { x = -70 },
+}, 0.22)
+Library.EchoNightfallVeil = held(0.8, 0.65, {
+	Root = { x = 8 },
+	RightShoulder = { x = 180, z = -10 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 60, z = -90 },
+	Neck = { x = -20 },
+}, 0.25)
+Library.EchoEclipseRend = held(0.35, 0.25, {
+	Root = { py = -0.8, x = -15 },
+	Waist = { y = 40 },
+	RightShoulder = { x = -30, z = 30 },
+	LeftHip = { x = 50 },
+	LeftKnee = { x = -60 },
+}, 0.08)
+Library.EchoEclipse = held(1.0, 0.8, {
+	Root = { x = 12, py = 0.2 },
+	LeftShoulder = { x = 30, z = -120 },
+	RightShoulder = { x = 170, z = 10 },
+	RightElbow = { x = 0 },
+	Neck = { x = -30 },
+}, 0.3)
+
+-- Earth
+Library.EchoStonePillar = held(0.55, 0.4, {
+	Root = { x = -20, py = -1.2 },
+	Waist = { x = -25 },
+	RightShoulder = { x = 40 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = -20, z = -50 },
+	LeftHip = { x = 60 },
+	LeftKnee = { x = -70 },
+}, 0.15)
+Library.EchoRockToss = keys(0.65, {
+	{ t = 0, pose = guard },
+	{ t = 0.1, ease = "out", pose = { Root = { py = 0.2 }, LeftHip = { x = 80 }, LeftKnee = { x = -80 } } },
+	{
+		t = 0.18,
+		ease = "in",
+		pose = { Root = { py = -0.6 }, LeftHip = { x = 20 }, LeftKnee = { x = -30 }, RightShoulder = { x = 30 } },
+	},
+	{
+		t = 0.3,
+		ease = "out",
+		pose = {
+			Root = { x = 15 },
+			RightShoulder = { x = 200 },
+			LeftShoulder = { x = 200 },
+			RightElbow = { x = 40 },
+			LeftElbow = { x = 40 },
+		},
+	},
+	{
+		t = 0.4,
+		ease = "in",
+		pose = {
+			Root = { x = -20 },
+			Waist = { x = -20 },
+			RightShoulder = { x = 80 },
+			LeftShoulder = { x = 80 },
+			RightElbow = { x = 0 },
+			LeftElbow = { x = 0 },
+			LeftHip = { x = 35 },
+		},
+	},
+	{ t = 0.65, ease = "inout", pose = guard },
+})
+Library.EchoQuakeStomp = keys(0.6, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.15,
+		ease = "out",
+		pose = {
+			Root = { py = 0.4 },
+			LeftHip = { x = 100 },
+			LeftKnee = { x = -90 },
+			LeftShoulder = { z = -70 },
+			RightShoulder = { x = 30, z = 70 },
+		},
+	},
+	{
+		t = 0.25,
+		ease = "in",
+		pose = {
+			Root = { py = -1.3 },
+			LeftHip = { x = 40 },
+			LeftKnee = { x = -60 },
+			RightHip = { x = 40 },
+			RightKnee = { x = -60 },
+			LeftShoulder = { z = -50 },
+			RightShoulder = { z = 50 },
+		},
+	},
+	{
+		t = 0.45,
+		pose = {
+			Root = { py = -1.2 },
+			LeftHip = { x = 40 },
+			LeftKnee = { x = -60 },
+			RightHip = { x = 40 },
+			RightKnee = { x = -60 },
+		},
+	},
+	{ t = 0.6, ease = "inout", pose = guard },
+})
+Library.EchoGraniteSkin = held(0.5, 0.35, {
+	Root = { py = -0.8 },
+	Waist = { x = 15 },
+	LeftShoulder = { x = 30, z = -60 },
+	RightShoulder = { x = 30, z = 60 },
+	LeftElbow = { x = 100 },
+	RightElbow = { x = 100 },
+	LeftHip = { x = 30 },
+	RightHip = { x = 30 },
+	LeftKnee = { x = -40 },
+	RightKnee = { x = -40 },
+}, 0.15)
+Library.EchoTectonicRift = held(0.65, 0.5, {
+	Root = { x = -30, py = -0.8 },
+	RightShoulder = { x = -40, z = 30 },
+	RightElbow = { x = 0 },
+	LeftShoulder = { x = 60 },
+	LeftHip = { x = 60 },
+	RightHip = { x = -40 },
+	LeftKnee = { x = -40 },
+}, 0.1)
+Library.EchoEarthenPrison = keys(0.65, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.15,
+		ease = "out",
+		pose = { LeftShoulder = { x = 70, z = -100 }, RightShoulder = { x = 70, z = 100 }, Root = { py = -0.3 } },
+	},
+	{
+		t = 0.3,
+		ease = "in",
+		pose = {
+			LeftShoulder = { x = 90 },
+			RightShoulder = { x = 90 },
+			LeftElbow = { x = 0 },
+			RightElbow = { x = 0 },
+			Root = { py = -0.5, x = -10 },
+		},
+	},
+	{ t = 0.5, pose = { LeftShoulder = { x = 90 }, RightShoulder = { x = 90 }, Root = { py = -0.5, x = -10 } } },
+	{ t = 0.65, ease = "inout", pose = guard },
+})
+Library.EchoMountainsWrath = held(1.1, 0.95, {
+	Root = { x = 8 },
+	LeftShoulder = { x = 180, z = -10 },
+	LeftElbow = { x = 0 },
+	RightShoulder = { x = 30, z = 40 },
+	Neck = { x = -25 },
+	LeftHip = { x = 20 },
+}, 0.3)
+
+-- Rift
+Library.EchoGrappleHook = keys(0.45, {
+	{ t = 0, pose = guard },
+	{
+		t = 0.12,
+		ease = "out",
+		pose = { Waist = { y = 25 }, LeftShoulder = { x = 150, z = -40 }, LeftElbow = { x = 60 } },
+	},
+	{
+		t = 0.2,
+		ease = "in",
+		pose = { Waist = { y = -25 }, LeftShoulder = { x = 95 }, LeftElbow = { x = 0 }, Root = { x = -10 } },
+	},
+	{ t = 0.45, ease = "inout", pose = guard },
+})
+Library.EchoAfterimage = held(0.35, 0.25, {
+	Root = { py = -0.3 },
+	LeftShoulder = { z = -40 },
+	RightShoulder = { x = 60, z = 20 },
+	Neck = { x = -10 },
+}, 0.08)
+Library.EchoRiftBarrier = held(0.5, 0.35, {
+	Root = { py = -0.4 },
+	LeftShoulder = { x = 90, z = -30 },
+	RightShoulder = { x = 90, z = 30 },
+	LeftElbow = { x = 90 },
+	RightElbow = { x = 90 },
+}, 0.1)
+Library.EchoMirrorGuard = held(1.2, 1.05, {
+	Root = { py = -0.5 },
+	RightShoulder = { x = 90, z = -20 },
+	RightElbow = { x = 20 },
+	LeftShoulder = { x = 80, z = -30 },
+	LeftElbow = { x = 60 },
+	LeftHip = { x = 30 },
+	RightHip = { x = -15 },
+}, 0.06)
+
 return Library

@@ -759,6 +759,9 @@ local function active(model: Model, attribute: string): boolean
 	return typeof(untilTime) == "number" and workspace:GetServerTimeNow() < untilTime
 end
 
+local statusUpdaters: { (Model, BasePart, BasePart) -> () } = {}
+local extraKinds: { [string]: (Model?, Model?, Vector3?, number?, any) -> () } = {}
+
 local function updateStatusLooks()
 	for _, model in fighters() do
 		local torso = model:FindFirstChild("UpperTorso")
@@ -804,6 +807,9 @@ local function updateStatusLooks()
 			elseif not marked and tag then
 				tag:Destroy()
 			end
+			for _, fn in statusUpdaters do
+				pcall(fn, model, torso :: BasePart, head :: BasePart)
+			end
 		end
 	end
 end
@@ -822,6 +828,9 @@ function EchoFx.handle(
 	elseif kind == "burntick" and position then
 		Combat.popText(position, tostring(amount or 2), ORANGE)
 		return true
+	elseif extraKinds[kind] then
+		extraKinds[kind](attacker, target, position, amount, extra)
+		return true
 	end
 	local _ = target
 	return false
@@ -839,5 +848,35 @@ function EchoFx.start(combat)
 		end
 	end)
 end
+
+-- The Ice, Wind, Shadow, Earth and extra Rift visuals live in EchoFxExtra and use these tools.
+require(script.Parent.EchoFxExtra)({
+	Show = Show,
+	STATUS_LOOKS = STATUS_LOOKS,
+	statusUpdaters = statusUpdaters,
+	extraKinds = extraKinds,
+	part = part,
+	tween = tween,
+	emitter = emitter,
+	holder = holder,
+	burst = burst,
+	ring = ring,
+	flash = flash,
+	bolt = bolt,
+	afterimage = afterimage,
+	near = near,
+	screenFlash = screenFlash,
+	fly = fly,
+	withTrail = withTrail,
+	hrpOf = hrpOf,
+	active = active,
+	projectiles = projectiles,
+	combat = function()
+		return Combat
+	end,
+	FIRE = FIRE,
+	SMOKE = SMOKE,
+	SPARK = SPARK,
+})
 
 return EchoFx

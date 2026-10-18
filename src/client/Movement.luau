@@ -19,7 +19,9 @@ local charges = M.DodgeCharges
 local refillAt: { number } = {}
 local busyUntil = 0
 local sprinting = false
-local airJumpUsed, airDashUsed = false, false
+local airJumpUsed = false
+local airDashes = 0
+local defaultJump = 7.2
 local lastJumpAt = 0
 local lastJumpRequest = 0
 local minFallSpeed = 0
@@ -83,6 +85,12 @@ local function startDrive(dir: Vector3, from: number, to: number, duration: numb
 	drive = { dir = dir, from = from, to = to, startTime = os.clock(), duration = duration, keepY = keepY }
 end
 
+local function rooted(): boolean
+	local character = player.Character
+	local mult = character and character:GetAttribute("SpeedMult")
+	return typeof(mult) == "number" and mult <= 0
+end
+
 local function grounded(humanoid: Humanoid): boolean
 	return humanoid.FloorMaterial ~= Enum.Material.Air
 end
@@ -93,6 +101,7 @@ function Movement.dodge()
 		not character
 		or os.clock() < busyUntil
 		or Movement.isStunned()
+		or rooted()
 		or not grounded(humanoid)
 		or not spendCharge()
 	then
@@ -121,15 +130,18 @@ end
 
 function Movement.dash()
 	local character, humanoid, hrp = parts()
-	if not character or os.clock() < busyUntil or Movement.isStunned() then
+	if not character or os.clock() < busyUntil or Movement.isStunned() or rooted() then
 		return
 	end
 	local dir = inputDirection(hrp, humanoid)
 	if not grounded(humanoid) then
-		if airDashUsed then
+		-- Tempest Step allows three air dashes per jump.
+		local tempest = character:GetAttribute("TempestUntil")
+		local allowed = if typeof(tempest) == "number" and workspace:GetServerTimeNow() < tempest then 3 else 1
+		if airDashes >= allowed then
 			return
 		end
-		airDashUsed = true
+		airDashes += 1
 		busyUntil = os.clock() + 0.25
 		startDrive(dir, M.AirDashDistance / 0.25, 20, 0.25, false)
 		play("AirDash")
@@ -281,14 +293,15 @@ end
 
 local function onCharacter(character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
-	airJumpUsed, airDashUsed, drive, busyUntil = false, false, nil, 0
+	airJumpUsed, airDashes, drive, busyUntil = false, 0, nil, 0
+	defaultJump = humanoid.JumpHeight
 	path = {}
 	humanoid.WalkSpeed = if sprinting then Config.Character.SprintSpeed else Config.Character.WalkSpeed
 	humanoid.StateChanged:Connect(function(_, new)
 		if new == Enum.HumanoidStateType.Jumping then
 			lastJumpAt = os.clock()
 		elseif new == Enum.HumanoidStateType.Landed then
-			airJumpUsed, airDashUsed = false, false
+			airJumpUsed, airDashes = false, 0
 			if minFallSpeed < -M.HardLandingSpeed then
 				play("LandRoll")
 			end
@@ -334,6 +347,11 @@ function Movement.start(remote: RemoteEvent)
 		if not hrp then
 			return
 		end
+		-- Statuses and buffs (Chill, Root, Freeze, Granite Skin, Frozen Path...) set SpeedMult.
+		local mult = humanoid.Parent:GetAttribute("SpeedMult")
+		mult = if typeof(mult) == "number" then mult else 1
+		humanoid.WalkSpeed = (if sprinting then Config.Character.SprintSpeed else Config.Character.WalkSpeed) * mult
+		humanoid.JumpHeight = if mult <= 0 then 0 else defaultJump
 		local v = hrp.AssemblyLinearVelocity
 		if not grounded(humanoid) then
 			minFallSpeed = math.min(minFallSpeed, v.Y)

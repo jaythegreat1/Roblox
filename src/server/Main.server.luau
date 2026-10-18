@@ -46,6 +46,7 @@ action.OnServerEvent:Connect(function(player, name)
 		character:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + Config.Movement.RollIFrames)
 		-- A dodge roll puts out Burn.
 		character:SetAttribute("Status_Burn", nil)
+		Echoes.onDodge(character)
 	end
 	for _, other in Players:GetPlayers() do
 		if other ~= player then

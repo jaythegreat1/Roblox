@@ -42,13 +42,16 @@ type State = {
 	chainLastAt: number,
 	statusOrder: { string },
 	burnSource: any?,
+	baseWalkSpeed: number?,
 	nextBurnAt: number?,
 }
 
 local states: { [Model]: State } = {}
+local updateSpeed
 local fxRemote: RemoteEvent
 local knockbackRemote: RemoteEvent
 local swingListeners: { (Model, any, boolean, number) -> () } = {}
+local landedListeners: { (any, any, any, boolean) -> () } = {}
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -131,7 +134,36 @@ local function addSurge(s: State?, amount: number)
 end
 
 -- Every damaging hit goes through here: buffs, Mark, and Surge for both sides.
-local function hurt(attacker: State?, target: State, amount: number): number
+local function active(model: Model, attribute: string): boolean
+	local untilTime = model:GetAttribute(attribute)
+	return typeof(untilTime) == "number" and now() < untilTime
+end
+
+local function hurt(attacker: State?, target: State, amount: number, tick: boolean?): number
+	-- Freeze: the next real hit shatters the ice for 8 bonus damage and frees the target.
+	if not tick and hasStatus(target, "Freeze") then
+		amount += 8
+		target.model:SetAttribute("Status_Freeze", nil)
+		target.model:SetAttribute("StunnedUntil", nil)
+		fx("shatter", nil, target.model, target.hrp.Position)
+	end
+	if active(target.model, "GraniteUntil") then
+		amount *= 0.6
+	end
+	if active(target.model, "EntombedUntil") then
+		amount *= 0.5
+	end
+	-- Rift Barrier soaks damage first.
+	local shield = target.model:GetAttribute("Shield")
+	if typeof(shield) == "number" and shield > 0 and active(target.model, "ShieldUntil") then
+		local soaked = math.min(shield, amount)
+		amount -= soaked
+		target.model:SetAttribute("Shield", if shield - soaked > 0 then shield - soaked else nil)
+		if shield - soaked <= 0 then
+			target.model:SetAttribute("ShieldUntil", nil)
+			fx("shieldbreak", nil, target.model, target.hrp.Position)
+		end
+	end
 	if attacker and typeof(attacker.model:GetAttribute("BattleCryUntil")) == "number" then
 		if now() < attacker.model:GetAttribute("BattleCryUntil") then
 			amount *= 1.15
@@ -149,7 +181,8 @@ end
 
 -- Statuses (master plan): at most two different ones at a time, a third replaces the oldest;
 -- reapplying refreshes. Stored as Status_<name> = server time it ends, so clients can show it.
-local function applyStatus(target: State, name: string, duration: number?, source: State?)
+local applyStatus
+function applyStatus(target: State, name: string, duration: number?, source: State?)
 	local info = Echoes.Statuses[name]
 	if not info or not alive(target) then
 		return
@@ -174,9 +207,28 @@ local function applyStatus(target: State, name: string, duration: number?, sourc
 		end
 	end
 	table.insert(order, name)
+	if name == "Chill" then
+		-- Chill stacks up to 3; the third stack Freezes. Status_Chill is the next decay time.
+		local stacks = (target.model:GetAttribute("ChillStacks") or 0) + 1
+		if stacks >= 3 then
+			target.model:SetAttribute("ChillStacks", nil)
+			target.model:SetAttribute("Status_Chill", nil)
+			table.remove(order, table.find(order, "Chill"))
+			applyStatus(target, "Freeze", nil, source)
+			return
+		end
+		target.model:SetAttribute("ChillStacks", stacks)
+		target.model:SetAttribute("Status_Chill", now() + 1)
+		return
+	end
 	target.model:SetAttribute("Status_" .. name, now() + seconds)
 	if name == "Burn" then
 		target.burnSource = source
+	elseif name == "Freeze" then
+		stun(target, seconds)
+	elseif name == "Airborne" and target.blocking then
+		target.blocking = false
+		fx("stop", target.model, nil, nil, nil, "Block")
 	end
 end
 
@@ -216,6 +268,30 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		return
 	end
 	local hitPos = target.hrp.Position + Vector3.new(0, 0.8, 0)
+
+	-- Counter stances (Glacial Guard, Mirror Guard) answer the hit instead of taking it.
+	local counter = target.model:GetAttribute("CounterKind")
+	if counter and active(target.model, "CounterUntil") then
+		if counter == "GlacialGuard" then
+			target.model:SetAttribute("CounterKind", nil)
+			fx("counter", target.model, attacker.model, hitPos, nil, counter)
+			-- The counter-slash lands first, then the attacker freezes (so it does not shatter it).
+			if (attacker.hrp.Position - target.hrp.Position).Magnitude < 10 then
+				local dealt = hurt(target, attacker, 8)
+				fx("hit", target.model, attacker.model, attacker.hrp.Position, dealt, true)
+			end
+			applyStatus(attacker, "Freeze", 0.8, target)
+			return
+		elseif counter == "MirrorGuard" and not move.projectile then
+			fx("parry", attacker.model, target.model, hitPos)
+			if not move.ranged then
+				stun(attacker, C.parriedStun)
+				local dealt = hurt(target, attacker, 15)
+				fx("hit", target.model, attacker.model, attacker.hrp.Position, dealt, true)
+			end
+			return
+		end
+	end
 
 	-- Clash: both fighters' strikes land within 0.12 s of each other while facing.
 	local pending = target.pendingStrikeAt
@@ -265,6 +341,9 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 		hurt(attacker, target, chip)
 		target.lastPostureHit = t
 		local postureCost = move.posture * (if swordOf(target).passive == "steadfast" then 0.85 else 1)
+		if hasStatus(target, "Fracture") then
+			postureCost *= 1.5
+		end
 		setPosture(target, target.posture - postureCost)
 		if target.posture <= 0 then
 			target.guardBroken = true
@@ -304,6 +383,9 @@ local function applyHit(attacker: State, target: State, move, isHeavy: boolean, 
 	end
 	if move.status then
 		applyStatus(target, move.status, move.statusTime, attacker)
+	end
+	for _, fn in landedListeners do
+		task.spawn(fn, attacker, target, move, isHeavy)
 	end
 	-- Hyper armor (Titan's Maw heavies, Iron Will): light hits still hurt but cannot interrupt.
 	local armored = (swordOf(target).passive == "unstoppable" and target.chargingSince ~= nil) or t < target.armorUntil
@@ -439,6 +521,9 @@ end
 
 local function onBlockStart(s: State)
 	local t = now()
+	if hasStatus(s, "Airborne") then
+		return
+	end
 	if stunned(s) or t < s.blockLockUntil or t < s.busyUntil - 0.1 then
 		return
 	end
@@ -670,6 +755,12 @@ Combat.applyStatus = applyStatus
 Combat.clearStatuses = clearStatuses
 Combat.hasStatus = hasStatus
 Combat.hurt = hurt
+Combat.active = active
+
+-- Runs after every hit that lands (Umbral Fangs and similar Strike Echoes use it).
+function Combat.onLanded(fn: (any, any, any, boolean) -> ())
+	table.insert(landedListeners, fn)
+end
 
 -- A short message shown only to one player.
 function Combat.notice(player: Player, text: string)
@@ -704,6 +795,36 @@ function Combat.isBlocking(model: Model): boolean
 	return s ~= nil and s.blocking
 end
 
+-- Movement speed from statuses and buffs. Players' own clients read SpeedMult; AI is set here.
+function updateSpeed(s: State)
+	local mult = 1
+	if hasStatus(s, "Root") or hasStatus(s, "Freeze") then
+		mult = 0
+	else
+		mult *= 1 - 0.15 * (s.model:GetAttribute("ChillStacks") or 0)
+		if active(s.model, "GraniteUntil") then
+			mult *= 0.8
+		end
+		if active(s.model, "FrozenPathUntil") then
+			mult *= 1.3
+		end
+		if active(s.model, "TempestUntil") then
+			mult *= 1.15
+		end
+		if active(s.model, "NightfallBoostUntil") then
+			mult *= 1.2
+		end
+	end
+	mult = math.floor(mult * 100 + 0.5) / 100
+	if (s.model:GetAttribute("SpeedMult") or 1) ~= mult then
+		s.model:SetAttribute("SpeedMult", if mult == 1 then nil else mult)
+		if not Players:GetPlayerFromCharacter(s.model) then
+			s.baseWalkSpeed = s.baseWalkSpeed or s.humanoid.WalkSpeed
+			s.humanoid.WalkSpeed = s.baseWalkSpeed * mult
+		end
+	end
+end
+
 function Combat.start(remotes: Folder)
 	local request = Instance.new("RemoteEvent")
 	request.Name = "Combat"
@@ -725,14 +846,28 @@ function Combat.start(remotes: Folder)
 	RunService.Heartbeat:Connect(function(dt)
 		local t = now()
 		for _, s in states do
-			if not s.blocking and s.posture < C.maxPosture and t - s.lastPostureHit > C.postureRegenDelay then
+			-- Chill loses a stack every second you are not hit.
+			local stacks = s.model:GetAttribute("ChillStacks")
+			if typeof(stacks) == "number" and not hasStatus(s, "Chill") then
+				s.model:SetAttribute("ChillStacks", if stacks > 1 then stacks - 1 else nil)
+				if stacks > 1 then
+					s.model:SetAttribute("Status_Chill", t + 1)
+				end
+			end
+			updateSpeed(s)
+			if
+				not s.blocking
+				and not hasStatus(s, "Fracture")
+				and s.posture < C.maxPosture
+				and t - s.lastPostureHit > C.postureRegenDelay
+			then
 				setPosture(s, s.posture + C.postureRegenPerSecond * dt)
 			end
 			-- Burn: 2 damage every 0.5 s.
 			if hasStatus(s, "Burn") and t >= (s.nextBurnAt or 0) then
 				s.nextBurnAt = t + 0.5
 				local source = s.burnSource
-				hurt(if alive(source) then source else nil, s, 2)
+				hurt(if alive(source) then source else nil, s, 2, true)
 				fx("burntick", nil, s.model, s.hrp.Position + Vector3.new(0, 1, 0), 2)
 			end
 			local h = s.humanoid
