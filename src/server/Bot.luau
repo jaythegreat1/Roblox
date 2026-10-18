@@ -19,7 +19,8 @@ local PROFILE = {
 	blockChance = 0.45,
 	backstepChance = 0.15,
 	aggression = 0.7,
-	sightRange = 45,
+	engageRange = 14, -- only starts a fight when you walk up close
+	leashRange = 30, -- gives up and walks home if the fight drifts this far from its spot
 }
 
 local function nearestPlayer(from: Vector3): (Model?, number)
@@ -79,6 +80,7 @@ local function run(model: Model, home: Vector3)
 	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	local hrp = model:FindFirstChild("HumanoidRootPart") :: BasePart
 	local comboLeft = 0
+	local engaged = false
 
 	-- React to incoming swings aimed at us.
 	Combat.onSwing(function(attacker, move, isHeavy, hitAt)
@@ -86,6 +88,9 @@ local function run(model: Model, home: Vector3)
 			return
 		end
 		local ahrp = attacker:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if ahrp and (ahrp.Position - hrp.Position).Magnitude <= PROFILE.engageRange then
+			engaged = true
+		end
 		if not ahrp or (ahrp.Position - hrp.Position).Magnitude > move.range + 3 then
 			return
 		end
@@ -113,8 +118,18 @@ local function run(model: Model, home: Vector3)
 	while model.Parent and humanoid.Health > 0 do
 		task.wait(0.15)
 		local target, dist = nearestPlayer(hrp.Position)
-		if not target or dist > PROFILE.sightRange then
-			humanoid:MoveTo(home)
+		local targetHrp = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local tooFarFromHome = targetHrp and (targetHrp.Position - home).Magnitude > PROFILE.leashRange
+		if engaged and (not target or tooFarFromHome) then
+			engaged = false
+		elseif not engaged and target and dist <= PROFILE.engageRange then
+			engaged = true
+		end
+		if not engaged or not target then
+			comboLeft = 0
+			if (hrp.Position - home).Magnitude > 3 then
+				humanoid:MoveTo(home)
+			end
 			continue
 		end
 		local thrp = target:FindFirstChild("HumanoidRootPart") :: BasePart

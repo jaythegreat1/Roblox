@@ -2,7 +2,7 @@
 -- Shared constants for Blade Rift. Values come from the master plan.
 local Config = {}
 
-Config.Version = "0.4.0-alpha (Phase 2 complete)"
+Config.Version = "0.4.1-alpha (fixes)"
 
 Config.Character = {
 	WalkSpeed = 16,
@@ -38,6 +38,8 @@ Config.Arena = {
 	Radius = 120,
 	PillarCount = 8,
 }
+
+Config.RespawnTime = 4
 
 Config.RemoteFolderName = "BladeRiftRemotes"
 

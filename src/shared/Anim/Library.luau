@@ -614,36 +614,89 @@ Library.GuardBreak = {
 	},
 }
 
+-- Grab: a two-handed lunge, a hoist, then a full spinning throw.
 Library.GrabReach = {
-	duration = 0.75,
+	duration = 0.9,
 	keys = {
 		{ t = 0, pose = guard },
 		{
-			t = 0.25,
+			t = 0.18,
 			ease = "out",
 			pose = {
-				Root = { x = -20, py = -0.4 },
-				Waist = { x = -15, y = -20 },
-				LeftShoulder = { x = 95, z = 10 },
-				LeftElbow = { x = 5 },
-				RightShoulder = { x = 20, z = 30 },
-				LeftHip = { x = 40 },
-				LeftKnee = { x = -30 },
+				Root = { x = -30, py = -0.7 },
+				Waist = { x = -20 },
+				LeftShoulder = { x = 100, z = 15 },
+				LeftElbow = { x = 0 },
+				RightShoulder = { x = 100, z = -15 },
+				RightElbow = { x = 0 },
+				LeftHip = { x = 60 },
+				LeftKnee = { x = -50 },
+				RightHip = { x = -35 },
 			},
 		},
 		{
-			t = 0.4,
-			ease = "in",
+			t = 0.35,
+			ease = "out",
 			pose = {
-				Root = { x = -10, py = -0.3 },
-				Waist = { x = 5, y = 40 },
-				LeftShoulder = { x = 60, z = -40 },
-				LeftElbow = { x = 40 },
-				RightShoulder = { x = 70, z = 60 },
+				Root = { x = 5, py = -0.4 },
+				Waist = { x = 20 },
+				LeftShoulder = { x = 160, z = 20 },
+				LeftElbow = { x = 30 },
+				RightShoulder = { x = 160, z = -20 },
 				RightElbow = { x = 30 },
+				LeftKnee = { x = -30 },
+				RightKnee = { x = -30 },
 			},
 		},
-		{ t = 0.75, ease = "inout", pose = guard },
+		{
+			t = 0.65,
+			ease = "in",
+			pose = {
+				Root = { y = -300, py = -0.5 },
+				Waist = { x = -25, y = -40 },
+				LeftShoulder = { x = 70, z = -60 },
+				LeftElbow = { x = 10 },
+				RightShoulder = { x = 90, z = 70 },
+				RightElbow = { x = 10 },
+			},
+		},
+		{ t = 0.9, ease = "out", pose = { Root = { y = -360 } } },
+	},
+}
+
+-- Being thrown: lifted, then tumbling head over heels.
+Library.Thrown = {
+	duration = 1,
+	keys = {
+		{ t = 0, pose = {} },
+		{
+			t = 0.3,
+			ease = "out",
+			pose = {
+				Root = { x = 20, py = 0.5 },
+				LeftShoulder = { x = 40, z = -90 },
+				RightShoulder = { x = 40, z = 90 },
+				LeftKnee = { x = -40 },
+				RightKnee = { x = -60 },
+			},
+		},
+		{
+			t = 0.75,
+			ease = "inout",
+			pose = {
+				Root = { x = 340 },
+				LeftShoulder = { x = 60, z = -100 },
+				RightShoulder = { x = 60, z = 100 },
+				LeftHip = { x = 50 },
+				RightHip = { x = 20 },
+				LeftKnee = { x = -70 },
+			},
+		},
+		{
+			t = 1,
+			ease = "out",
+			pose = { Root = { x = 360, py = -0.8 }, LeftKnee = { x = -50 }, RightKnee = { x = -50 } },
+		},
 	},
 }
 
@@ -774,6 +827,42 @@ Library.FinisherVictim = {
 				RightHip = { x = 60 },
 				LeftShoulder = { x = 10, z = -10 },
 				RightShoulder = { x = 10, z = 10 },
+			},
+		},
+	},
+}
+
+Library.Defeated = {
+	duration = 0.9,
+	hold = true,
+	keys = {
+		{ t = 0, pose = {} },
+		{
+			t = 0.25,
+			ease = "out",
+			pose = {
+				Root = { x = 20, py = -0.6 },
+				Waist = { x = 25 },
+				Neck = { x = 30 },
+				LeftKnee = { x = -60 },
+				RightKnee = { x = -40 },
+				LeftShoulder = { z = -30 },
+				RightShoulder = { z = 30 },
+			},
+		},
+		{
+			t = 0.9,
+			ease = "inout",
+			pose = {
+				Root = { x = 25, py = -2.1 },
+				Waist = { x = 35 },
+				Neck = { x = 40 },
+				LeftHip = { x = 90 },
+				RightHip = { x = 85 },
+				LeftKnee = { x = -120 },
+				RightKnee = { x = -115 },
+				LeftShoulder = { x = 10, z = -15 },
+				RightShoulder = { x = 10, z = 15 },
 			},
 		},
 	},

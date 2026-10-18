@@ -159,7 +159,7 @@ local function extraFx(kind: string, attacker: Model?, target: Model?, position:
 	elseif kind == "grab" and position then
 		burst(position, Color3.fromRGB(255, 120, 80), 18, 0.8)
 		popText(position, tostring(amount or 0), Color3.fromRGB(255, 150, 90), true)
-		Engine.play(target, "HitHeavy")
+		Engine.play(target, "Thrown")
 		if attacker == me or target == me then
 			shake(0.5, 0.2)
 		end
@@ -394,8 +394,8 @@ function Combat.grabOrFinish()
 		Movement.lockFor(1.4)
 		request:FireServer("Finish")
 	else
-		lockUntil = os.clock() + 0.75
-		Movement.lockFor(0.6)
+		lockUntil = os.clock() + 0.9
+		Movement.lockFor(0.8)
 		playSwing(myCharacter(), "GrabReach")
 		request:FireServer("Grab")
 	end

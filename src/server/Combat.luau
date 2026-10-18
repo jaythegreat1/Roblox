@@ -307,12 +307,12 @@ local function onGrab(s: State)
 	if t < s.busyUntil or stunned(s) or s.blocking or s.chargingSince then
 		return
 	end
-	s.busyUntil = t + 0.75
+	s.busyUntil = t + 0.9
 	s.comboIndex = 0
 	s.strikeToken += 1
 	local token = s.strikeToken
 	fx("swing", s.model, nil, nil, nil, "GrabReach")
-	task.delay(0.35, function()
+	task.delay(0.3, function()
 		if token ~= s.strikeToken or not alive(s) or stunned(s) then
 			return
 		end

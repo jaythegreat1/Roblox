@@ -40,6 +40,7 @@ type Rig = {
 	actionSpeed: number,
 	holding: boolean,
 	freezeUntil: number,
+	defeated: boolean?,
 	rayParams: RaycastParams,
 }
 
@@ -229,6 +230,24 @@ local function step(dt: number)
 	local now = os.clock()
 	for _, character in animatedCharacters() do
 		local rig = getRig(character)
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if rig and humanoid and humanoid.Health <= 0 and not rig.defeated then
+			rig.defeated = true
+			rig.action = Library.Defeated
+			rig.actionTime = 0
+			rig.actionSpeed = 1
+			rig.holding = true
+			-- Fade the body out like it dissolves into rift light.
+			task.delay(1.2, function()
+				for _, part in character:GetDescendants() do
+					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+						game:GetService("TweenService"):Create(part, TweenInfo.new(1.4), { Transparency = 1 }):Play()
+					elseif part:IsA("Decal") then
+						game:GetService("TweenService"):Create(part, TweenInfo.new(1.4), { Transparency = 1 }):Play()
+					end
+				end
+			end)
+		end
 		if rig then
 			local target = locomotionPose(rig, dt, now)
 			if character:GetAttribute("Armed") then

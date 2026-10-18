@@ -79,6 +79,8 @@ function Characters.start(spawnPad: BasePart, onSpawn: ((Model, Player) -> ())?)
 		humanoid.MaxHealth = Config.Character.MaxHealth
 		humanoid.Health = Config.Character.MaxHealth
 		humanoid.WalkSpeed = Config.Character.WalkSpeed
+		-- Keep the body in one piece on death; clients play a defeat pose and fade it out.
+		humanoid.BreakJointsOnDeath = false
 		local offset = Vector3.new(math.random(-5, 5), 4, math.random(-5, 5))
 		model:PivotTo(CFrame.new(spawnPad.Position + offset))
 		model.Parent = workspace
@@ -89,9 +91,12 @@ function Characters.start(spawnPad: BasePart, onSpawn: ((Model, Player) -> ())?)
 		end
 		player.Character = model
 		humanoid.Died:Connect(function()
-			task.wait(4)
+			task.wait(Config.RespawnTime)
 			if player.Parent then
 				spawnPlayer(player)
+			end
+			if model.Parent then
+				model:Destroy()
 			end
 		end)
 	end

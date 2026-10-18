@@ -202,3 +202,40 @@ RunService.Heartbeat:Connect(function()
 		combo.Text = ""
 	end
 end)
+
+-- Defeat overlay and a clean camera hand-off on respawn.
+local defeat = Instance.new("TextLabel")
+defeat.BackgroundColor3 = Color3.new(0, 0, 0)
+defeat.BackgroundTransparency = 1
+defeat.Size = UDim2.fromScale(1, 1)
+defeat.Font = Enum.Font.GothamBlack
+defeat.TextSize = 40
+defeat.TextColor3 = Color3.fromRGB(255, 120, 230)
+defeat.TextStrokeTransparency = 0.3
+defeat.Text = ""
+defeat.Visible = false
+defeat.ZIndex = 10
+defeat.Parent = gui
+
+local function onCharacter(character: Model)
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	local camera = workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Custom
+	camera.CameraSubject = humanoid
+	defeat.Visible = false
+	humanoid.Died:Connect(function()
+		defeat.Visible = true
+		defeat.BackgroundTransparency = 0.6
+		for i = Config.RespawnTime, 1, -1 do
+			if not defeat.Visible then
+				return
+			end
+			defeat.Text = `DEFEATED\nRespawning in {i}`
+			task.wait(1)
+		end
+	end)
+end
+if player.Character then
+	task.spawn(onCharacter, player.Character)
+end
+player.CharacterAdded:Connect(onCharacter)
