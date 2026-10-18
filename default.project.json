@@ -1,0 +1,33 @@
+{
+  "name": "BladeRift",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "$properties": { "CharacterWalkSpeed": 16, "CharacterJumpHeight": 7.2 },
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "Players": {
+      "$properties": { "CharacterAutoLoads": false }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 17.2,
+        "Brightness": 2.2,
+        "Ambient": [0.35, 0.33, 0.42],
+        "OutdoorAmbient": [0.45, 0.42, 0.5]
+      }
+    },
+    "Workspace": {
+      "$properties": { "Gravity": 196.2 }
+    }
+  }
+}
