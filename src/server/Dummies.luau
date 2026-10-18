@@ -10,9 +10,9 @@ local Overhead = require(script.Parent.Overhead)
 local Dummies = {}
 
 local MODES = {
-	{ mode = "Stand", label = "Dummy: stands still", offset = Vector3.new(-14, 0, -24) },
+	{ mode = "Stand", label = "Dummy: stands still", offset = Vector3.new(-20, 0, -24) },
 	{ mode = "Block", label = "Dummy: always blocks", offset = Vector3.new(0, 0, -28) },
-	{ mode = "Parry", label = "Dummy: parries half", offset = Vector3.new(14, 0, -24) },
+	{ mode = "Parry", label = "Dummy: parries half", offset = Vector3.new(20, 0, -24) },
 }
 
 function Dummies.spawn(center: Vector3)

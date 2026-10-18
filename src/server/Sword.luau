@@ -76,13 +76,23 @@ function Sword.attach(character: Model)
 			Enum.Material.Metal
 		),
 	}
-	handle.Parent = model
-	for _, p in parts do
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = handle
+	-- Weld every piece straight to the hand. The grip point is the centre of the handle, so the
+	-- fist always closes around the handle no matter how the model was positioned before.
+	local grip = CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	local function weldToHand(p: Part)
+		local offset = p.CFrame
+		p.CFrame = hand.CFrame * grip * offset
+		local weld = Instance.new("Weld")
+		weld.Name = "SwordWeld"
+		weld.Part0 = hand
 		weld.Part1 = p
+		weld.C0 = grip * offset
 		weld.Parent = p
 		p.Parent = model
+	end
+	weldToHand(handle)
+	for _, p in parts do
+		weldToHand(p)
 	end
 
 	local blade = model:FindFirstChild("Blade") :: Part
@@ -106,14 +116,6 @@ function Sword.attach(character: Model)
 	trail.Enabled = false
 	trail.Parent = blade
 
-	-- Position the whole sword in the hand, then weld it.
-	model:PivotTo(hand.CFrame * CFrame.new(0, -0.15, -0.05) * CFrame.Angles(math.rad(-90), 0, 0))
-	local grip = Instance.new("Weld")
-	grip.Name = "SwordGrip"
-	grip.Part0 = hand
-	grip.Part1 = handle
-	grip.C0 = CFrame.new(0, -0.15, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
-	grip.Parent = handle
 	model.PrimaryPart = handle
 	model.Parent = character
 	character:SetAttribute("Armed", true)
